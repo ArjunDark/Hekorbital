@@ -62,6 +62,19 @@ connector because the corresponding stage fired.
 
 Colour is reserved for status. Nothing glows, nothing animates for decoration.
 
+## Releases
+
+Every change is published as a tagged GitHub release, so any earlier state can be
+restored without digging through commits.
+
+| | |
+| --- | --- |
+| current | **v1.0.0** — ground-segment console |
+| rule | any visible change bumps the minor version (1.0 → 1.1); fixes bump the patch |
+| rollback | download the source of the tag you want from the releases page, or ask for a revert to it |
+
+`CHANGELOG.md` lists what changed in each release.
+
 ## Controls
 
 | key | action |
