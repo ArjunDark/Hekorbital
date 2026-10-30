@@ -19,10 +19,12 @@ sat-img-pipe/
 │   └── styles.css
 ├── js/
 │   ├── config.js           constants, defaults, shared state
-│   ├── log.js              the trace panel
-│   ├── stage.js            SVG flow paths, packets, node flashes
-│   ├── storage.js          SRAM, mass memory, GC policy
-│   ├── ui.js               device panels, preview, table, settings
+│   ├── log.js              event log (UTC · severity · source)
+│   ├── earth.js            rotating orthographic Earth
+│   ├── earth-data.js       Natural Earth 110m coastlines, simplified
+│   ├── stage.js            payload-chain connectors, packets, node flashes
+│   ├── storage.js          PSRAM ring, mass memory, GC policy
+│   ├── ui.js               telemetry panels, frame view, index table, config
 │   └── app.js              acquisition, the cycle, the clock
 ├── dataset/                ← the image set  (manifest.js + tiles/*.jpg)
 ├── preprocess/             ← CubeSat ingress: PSRAM ring, INT8 tensor, SRAM guard
@@ -42,6 +44,23 @@ python3 serve.py
 browser taint every canvas the page draws an image into, and the preprocessing stage
 reads those pixels. The page detects this at boot and says so instead of failing
 silently.
+
+## Interface
+
+Laid out as a ground-segment console rather than a dashboard: a mission header
+(MET / UTC / mode / counters), spacecraft-bus and ground-segment telemetry on the
+left, the payload chain and spacecraft view in the centre, frame/tensor view and
+event log on the right, and the frame index along the bottom. Nothing scrolls —
+row counts and log depth are computed from the space available.
+
+The centre view draws the spacecraft over a rotating orthographic Earth built from
+real Natural Earth coastlines (2.4°/s, one revolution per 150 s). The ground-station
+marker is a real point on the globe — it rotates with the planet and is only drawn,
+with its dashed uplink, while it is on the visible hemisphere. Everything else in
+that view is a readout of actual pipeline state: a packet only moves along a
+connector because the corresponding stage fired.
+
+Colour is reserved for status. Nothing glows, nothing animates for decoration.
 
 ## Controls
 

@@ -125,8 +125,10 @@ SAT.ui = (function(){
     $('#sat-wm').style.left = cfg.highWater + '%';
 
     var load = Math.round(util.clamp(S.loadEMA * 100, 0, 100));
-    $('#sat-load').textContent = load + '%';
-    $('#sat-load-bar').style.width = load + '%';
+    var loadEl = $('#sat-load');
+    if (loadEl) loadEl.textContent = load + '%';
+    var loadBar = $('#sat-load-bar');
+    if (loadBar) loadBar.style.width = load + '%';
 
     $('#sat-pwr').textContent = (6.4 + (S.busy ? 1.8 : 0) + load * 0.02).toFixed(1) + ' W';
     S.temp += ((24.1 + load * 0.055 + (S.busy ? 0.6 : 0)) - S.temp) * 0.02;
@@ -190,6 +192,22 @@ SAT.ui = (function(){
     $('#h-avg').textContent = st.length
       ? (st.reduce(function(s, f){ return s + f.eff; }, 0) / st.length).toFixed(1) : '—';
     $('#h-gc').textContent = S.stats.evicted + ' / ' + S.stats.compressed;
+    var now = new Date();
+    var utc = String(now.getUTCHours()).padStart(2,'0') + ':' +
+              String(now.getUTCMinutes()).padStart(2,'0') + ':' +
+              String(now.getUTCSeconds()).padStart(2,'0');
+    var utcEl = $('#h-utc');
+    if (utcEl) utcEl.textContent = utc + 'Z';
+
+    var pill = $('#sat-pill');
+    if (pill){
+      pill.textContent = S.fatal ? 'FAULT'
+        : (S.stats.rejected && !S.stats.committed) ? 'DEGRADED'
+        : 'NOMINAL';
+      pill.style.color = S.fatal ? 'var(--red)'
+        : (S.stats.rejected && !S.stats.committed) ? 'var(--amber)' : 'var(--green)';
+    }
+
     var el = Date.now() - S.clockStart;
     $('#h-clock').textContent =
       String(Math.floor(el / 3600000)).padStart(2, '0') + ':' +
@@ -239,9 +257,9 @@ SAT.ui = (function(){
       .sort(function(a, b){ return (b.discardedAt || 0) - (a.discardedAt || 0); })
       .slice(0, 3);
 
-    var box = document.querySelector('.dockbody');
-    var avail = (box ? box.clientHeight : 120) - 30;   // header row + slack
-    var capRows = Math.max(3, Math.floor(avail / 24)); // measured row pitch
+    var box = document.querySelector('.dock-bd');
+    var avail = (box ? box.clientHeight : 140) - 26;   // column header + slack
+    var capRows = Math.max(3, Math.floor(avail / 25)); // measured row pitch
     var rows = live.slice(0, Math.max(1, capRows - dead.length)).concat(dead);
 
     $('#store-empty').style.display = rows.length ? 'none' : 'block';

@@ -255,9 +255,11 @@ SAT.app = (function(){
       if (S.acc >= cfg.interval && !S.busy){ S.acc = 0; cycle(); }
     }
     SAT.stage.tick(dt);
+    if (SAT.earth) SAT.earth.draw(ts);
 
     if (ts - lastRender > 220){
       lastRender = ts;
+      fitStage();
       SAT.ui.renderDevices();
       SAT.ui.renderStore();
     }
@@ -291,6 +293,7 @@ SAT.app = (function(){
     }
 
     SAT.stage.init();
+    if (SAT.earth) SAT.earth.init(util.$('#earth'));
     SAT.ui.bindAll();
     SAT.ui.clearPreview();
 
@@ -306,25 +309,41 @@ SAT.app = (function(){
     }
 
     var d = SAT.model.describe();
-    SAT.log('SYS', 'SAT-IMG-PIPE boot · PSRAM ' + cfg.psramSlots + ' slots · SRAM 4.20 MB · mass memory ' + cfg.massMB + ' MB', 'warn');
-    SAT.log('SYS', 'ingress → ' + cfg.tensorRes + '² int8 (' + (cfg.tensorRes * cfg.tensorRes * 3 / 1024).toFixed(1) + ' KB), area-resize, clip(x-128)', 'warn');
-    SAT.log('SYS', 'connector=<b>' + d.id + '/' + d.version + '</b> · SAT.model.register({...}) to swap');
-    SAT.log('SYS', SAT.dataset.tiles.length + ' tiles · sequential, no random generation');
-    SAT.log('SYS', 'space hold · s step · b burst · t settings');
+    SAT.log('SYS', 'boot · PSRAM ' + cfg.psramSlots + ' slots · SRAM 4.20 MB · mass ' + cfg.massMB + ' MB', 'warn');
+    SAT.log('SYS', 'ingress ' + cfg.tensorRes + '² int8 · ' + (cfg.tensorRes * cfg.tensorRes * 3 / 1024).toFixed(1) + ' kB · clip(x-128)');
+    SAT.log('SYS', 'connector <b>' + d.id + '/' + d.version + '</b>');
+    SAT.log('SYS', SAT.dataset.tiles.length + ' tiles · fixed order');
 
+    fitStage();
     SAT.ui.renderDevices();
     SAT.ui.renderStore();
     setInterval(tick, 33);
+    window.addEventListener('resize', fitStage);
   }
 
   /* ---------------------------------------------------------------- */
   /* controls exposed to ui.js                                         */
   /* ---------------------------------------------------------------- */
+  var fitCache = '';
+  function fitStage(){
+    var wrap = util.$('.stage-wrap');
+    var fit = util.$('#stage-fit');
+    if (!wrap || !fit) return;
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    var key = w + 'x' + h;
+    if (key === fitCache) return;
+    fitCache = key;
+    var s = Math.min(w / 1000, h / 640);
+    fit.style.width = Math.round(1000 * s) + 'px';
+    fit.style.height = Math.round(640 * s) + 'px';
+    if (SAT.earth) SAT.earth.resize();
+  }
+
   function toggleRun(force){
     S.running = (force === undefined) ? !S.running : !!force;
     if (S.fatal) S.running = false;
     var btn = util.$('#btn-run');
-    btn.textContent = S.running ? 'pause' : 'run';
+    btn.textContent = S.running ? 'hold' : 'resume';
     btn.classList.toggle('on', S.running);
     util.$('#rundot').classList.toggle('paused', !S.running);
     util.$('#h-state').textContent = S.running ? 'RUN' : 'HOLD';

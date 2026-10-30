@@ -3,410 +3,367 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SAT-IMG-PIPE // onboard imaging pipeline simulator</title>
+<title>SAT-1 · Imager Payload Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
-<style>
-/* ---------- fatal overlay ---------- */
-.fatal{position:fixed;inset:0;z-index:60;background:rgba(5,6,10,.88);display:flex;align-items:center;justify-content:center;padding:24px}
-.fcard{max-width:520px;background:#0d1018;border:1px solid #3a2b33;border-left:2px solid var(--red);padding:18px 20px}
-.fcard h3{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);font-weight:500;margin-bottom:10px}
-.fcard p{font-size:10.5px;line-height:1.65;color:#aab4c8;margin-bottom:9px}
-.fcard code{color:var(--cyan);background:#0b1018;border:1px solid #182033;padding:0 3px}
-.fcard pre{font-size:10px;background:#080a12;border:1px solid #1b2133;padding:8px 10px;color:#9fb0c8;margin-bottom:12px;overflow-x:auto}
-.fcard button{font-size:9.5px}
-</style>
 </head>
 <body>
 
-
 <div class="app">
 
-  <header class="topbar">
-    <div class="brand">
-      <span class="mark">SAT·IMG·PIPE</span>
-      <span class="ver">v0.2 · onboard imager sim</span>
+  <!-- ================= HEADER ================= -->
+  <header class="hdr">
+    <div class="ident">
+      <span class="n">SAT-1 · Imager Payload</span>
+      <span class="s">flight console</span>
     </div>
+
+    <div class="strip">
+      <div class="cell"><span class="k">MET</span><span class="v" id="h-clock">00:00:00</span></div>
+      <div class="cell"><span class="k">UTC</span><span class="v dim" id="h-utc">--:--:--</span></div>
+      <div class="cell"><span class="k">Mode</span><span class="v" id="h-state">RUN</span></div>
+      <div class="cell"><span class="k">Frames</span><span class="v" id="h-frames">0</span></div>
+      <div class="cell"><span class="k">Throughput</span><span class="v" id="h-tp">0 KB/s</span></div>
+      <div class="cell"><span class="k">Mean eff</span><span class="v" id="h-avg">—</span></div>
+      <div class="cell"><span class="k">Evict / comp</span><span class="v" id="h-gc">0 / 0</span></div>
+    </div>
+
     <div class="ctl">
-      <button id="btn-run" class="on">pause</button>
+      <button id="btn-run" class="on">hold</button>
       <button id="btn-step">step</button>
       <button id="btn-burst">burst</button>
       <button id="btn-reset" class="ghost danger">reset</button>
-    </div>
-    <div class="ctl">
-      <span style="font-size:8px;letter-spacing:.13em;color:var(--dim2)">RATE</span>
+      <span class="lbl-inline" style="margin-left:4px">rate</span>
       <div class="seg" id="speed">
-        <button data-s="0.5">0.5×</button>
-        <button data-s="1" class="on">1×</button>
-        <button data-s="2">2×</button>
-        <button data-s="4">4×</button>
+        <button data-s="0.5">.5</button>
+        <button data-s="1" class="on">1</button>
+        <button data-s="2">2</button>
+        <button data-s="4">4</button>
       </div>
+      <button id="btn-settings">config</button>
     </div>
-    <div class="spacer"></div>
-    <div class="hud">
-      <div class="stat"><span class="k">state</span><span class="v"><span class="livedot" id="rundot"></span> <span id="h-state">RUN</span></span></div>
-      <div class="stat"><span class="k">frames</span><span class="v" id="h-frames">0</span></div>
-      <div class="stat"><span class="k">thruput</span><span class="v cyan" id="h-tp">0 KB/s</span></div>
-      <div class="stat"><span class="k">avg eff</span><span class="v amber" id="h-avg">—</span></div>
-      <div class="stat"><span class="k">evict/comp</span><span class="v red" id="h-gc">0 / 0</span></div>
-      <div class="stat"><span class="k">met</span><span class="v" id="h-clock">00:00:00</span></div>
-    </div>
-    <button id="btn-settings">settings</button>
   </header>
 
-  <!-- ============ LEFT ============ -->
+  <!-- ================= LEFT ================= -->
   <div class="col col-left">
 
     <section class="panel">
-      <span class="ttl"><b>SAT-1</b><span class="sep">/</span>onboard</span>
-      <div class="body dev">
-        <div class="devhead"><span>NODE · SAT-1</span><span class="pill ok" id="sat-pill">NOMINAL</span></div>
-        <div class="meter">
-          <div class="row"><span>PSRAM RING</span><span class="num" id="sat-sram">0 / 3 slots</span></div>
+      <div class="hd">
+        <span class="t">Spacecraft bus</span>
+        <span class="meta" id="sat-pill">NOMINAL</span>
+      </div>
+      <div class="bd">
+        <div class="mt">
+          <div class="top"><span class="k">PSRAM ring</span><span class="v" id="sat-sram">0 / 3 slots</span></div>
           <div class="bar"><i id="sat-sram-bar"></i></div>
         </div>
-        <div class="meter">
-          <div class="row"><span>SRAM TENSOR</span><span class="num" id="sat-tensor">0.0 KB / 4.20 MB</span></div>
+        <div class="mt">
+          <div class="top"><span class="k">SRAM tensor</span><span class="v" id="sat-tensor">0.0 KB / 4.20 MB</span></div>
           <div class="bar"><i id="sat-tensor-bar"></i></div>
         </div>
-        <div class="meter">
-          <div class="row"><span>MASS MEMORY</span><span class="num" id="sat-mem">0.00 / 16.00 MB</span></div>
-          <div class="bar"><i id="sat-mem-bar" class="amber"></i><span class="tick" id="sat-wm"></span></div>
+        <div class="mt">
+          <div class="top"><span class="k">Mass memory</span><span class="v" id="sat-mem">0.00 / 16.00 MB</span></div>
+          <div class="bar"><i id="sat-mem-bar"></i><span class="mk" id="sat-wm"></span></div>
         </div>
-        <div class="meter">
-          <div class="row"><span>MODEL LOAD</span><span class="num" id="sat-load">0%</span></div>
-          <div class="bar"><i id="sat-load-bar"></i></div>
+
+        <div class="tm">
+          <div class="r"><span class="k">Bus power</span><span class="v" id="sat-pwr">6.4 <span class="u">W</span></span></div>
+          <div class="r"><span class="k">Payload temp</span><span class="v" id="sat-temp">24.1 <span class="u">°C</span></span></div>
+          <div class="r"><span class="k">Orbit</span><span class="v" id="sat-orbit">LEO 550 <span class="u">km</span></span></div>
+          <div class="r"><span class="k">Frames captured</span><span class="v" id="sat-in">0</span></div>
+          <div class="r"><span class="k">Committed</span><span class="v" id="sat-commit">0</span></div>
+          <div class="r"><span class="k">Rejected</span><span class="v" id="sat-rej">0</span></div>
         </div>
-        <dl class="kv">
-          <dt>PWR</dt><dd id="sat-pwr">6.4 W</dd>
-          <dt>TEMP</dt><dd id="sat-temp">24.1 °C</dd>
-          <dt>ORBIT</dt><dd id="sat-orbit">LEO 550 km</dd>
-          <dt>FRAMES IN</dt><dd id="sat-in">0</dd>
-          <dt>COMMITTED</dt><dd id="sat-commit">0</dd>
-          <dt>REJECTED</dt><dd id="sat-rej">0</dd>
-        </dl>
-        <div class="leds">
-          <span><i class="on" style="background:var(--green)"></i>IMAGER</span>
-          <span><i style="background:var(--green)"></i>ADCS</span>
-          <span><i style="background:var(--green)"></i>GPS</span>
-          <span><i id="led-buf"></i>BUF</span>
-          <span><i id="led-mem"></i>MEM</span>
-          <span><i id="led-gc"></i>GC</span>
+
+        <div class="tm" style="margin-top:6px">
+          <div class="r">
+            <span class="k">Subsystems</span>
+            <span class="v" style="display:flex;gap:10px">
+              <span style="color:var(--dim2)">IMG<i style="display:inline-block;width:5px;height:5px;background:var(--green);margin-left:4px"></i></span>
+              <span style="color:var(--dim2)">ADCS<i style="display:inline-block;width:5px;height:5px;background:var(--green);margin-left:4px"></i></span>
+              <span style="color:var(--dim2)">BUF<i id="led-buf" style="display:inline-block;width:5px;height:5px;background:#3a4450;margin-left:4px"></i></span>
+              <span style="color:var(--dim2)">MEM<i id="led-mem" style="display:inline-block;width:5px;height:5px;background:#3a4450;margin-left:4px"></i></span>
+              <span style="color:var(--dim2)">GC<i id="led-gc" style="display:inline-block;width:5px;height:5px;background:#3a4450;margin-left:4px"></i></span>
+            </span>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="panel">
-      <span class="ttl"><b>GS-1</b><span class="sep">/</span>ground</span>
-      <div class="body dev">
-        <div class="devhead"><span>NODE · GS-1</span><span class="pill off" id="gs-pill">STANDBY</span></div>
-        <dl class="kv">
-          <dt>LINK</dt><dd id="gs-link">OFFLINE</dd>
-          <dt>BAND</dt><dd>S-BAND</dd>
-          <dt>RX BUFFER</dt><dd>0 KB</dd>
-          <dt>TELEMETRY</dt><dd style="color:var(--dim2)">not wired</dd>
-        </dl>
+      <div class="hd">
+        <span class="t">Ground segment</span>
+        <span class="meta">GS-1 · 77.2E 28.6N</span>
+      </div>
+      <div class="bd">
+        <div class="tm">
+          <div class="r"><span class="k">Link state</span><span class="v dim" id="gs-link">STANDBY</span></div>
+          <div class="r"><span class="k">Band</span><span class="v">S-band</span></div>
+          <div class="r"><span class="k">RX buffer</span><span class="v">0 <span class="u">kB</span></span></div>
+          <div class="r"><span class="k">Telemetry</span><span class="v dim">not wired</span></div>
+        </div>
       </div>
     </section>
 
     <section class="panel grow">
-      <span class="ttl"><b>PIPE</b><span class="sep">/</span>counters</span>
-      <div class="body" style="display:flex;flex-direction:column;gap:5px">
-        <dl class="kv">
-          <dt>CAPTURED</dt><dd id="p-cap">0</dd>
-          <dt>PREPROCESSED</dt><dd id="p-pre">0</dd>
-          <dt>SCORED</dt><dd id="p-score">0</dd>
-          <dt>IN STORE</dt><dd id="p-store">0</dd>
-          <dt>COMPRESSED</dt><dd id="p-comp">0</dd>
-          <dt>EVICTED</dt><dd id="p-evict">0</dd>
-          <dt>RING DROPS</dt><dd id="p-stall">0</dd>
-        </dl>
+      <div class="hd"><span class="t">Payload chain</span></div>
+      <div class="bd">
+        <div class="tm">
+          <div class="r"><span class="k">Captured</span><span class="v" id="p-cap">0</span></div>
+          <div class="r opt"><span class="k">Preprocessed</span><span class="v" id="p-pre">0</span></div>
+          <div class="r opt"><span class="k">Scored</span><span class="v" id="p-score">0</span></div>
+          <div class="r"><span class="k">In store</span><span class="v" id="p-store">0</span></div>
+          <div class="r"><span class="k">Compressed</span><span class="v" id="p-comp">0</span></div>
+          <div class="r"><span class="k">Evicted</span><span class="v" id="p-evict">0</span></div>
+          <div class="r"><span class="k">Ring drops</span><span class="v" id="p-stall">0</span></div>
+        </div>
+
         <div class="spark">
-          <div class="row"><span>MEMORY</span><span class="num" id="spark-val">0%</span></div>
-          <svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-label="memory usage trend">
-            <polyline id="spark-line" points="" fill="none" stroke="#3fd8d8" stroke-width="1" vector-effect="non-scaling-stroke"/>
-            <line id="spark-wm" x1="0" y1="4" x2="100" y2="4" stroke="rgba(255,95,122,.4)" stroke-width=".6" vector-effect="non-scaling-stroke" stroke-dasharray="2 2"/>
+          <div class="r"><span>Mass memory fill</span><span id="spark-val">0%</span></div>
+          <svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-label="mass memory fill trend">
+            <polyline id="spark-line" points="" fill="none" stroke="#4d8fd6" stroke-width="1" vector-effect="non-scaling-stroke"/>
+            <line id="spark-wm" x1="0" y1="4" x2="100" y2="4" stroke="rgba(194,90,90,.45)" stroke-width=".6" vector-effect="non-scaling-stroke" stroke-dasharray="2 2"/>
           </svg>
         </div>
-        <div class="hint" id="connector-info">stub-featurescore/0.1.0 · local</div>
+
         <div class="recent">
-          <div class="rh">RECENT STORAGE ACTIONS</div>
-          <div id="recent-list" class="rl"><span style="color:#454e63">—</span></div>
+          <div class="rh">Recent storage actions</div>
+          <div id="recent-list" class="rl"><span style="color:#525c6a">—</span></div>
         </div>
+
+        <div class="hint" id="connector-info" style="margin-top:6px">stub-featurescore/0.1.0 · local</div>
       </div>
     </section>
 
   </div>
 
-  <!-- ============ MIDDLE ============ -->
+  <!-- ================= CENTRE ================= -->
   <div class="col col-mid">
     <section class="panel grow">
-      <span class="ttl"><b>BUS</b><span class="sep">/</span>data flow</span>
-      <div class="body stage-wrap" style="padding:0">
-        <svg id="stage" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet" aria-label="Data flow through the onboard imaging pipeline">
+      <div class="hd">
+        <span class="t">Spacecraft view</span>
+        <span class="meta" id="stage-meta">LEO · 550 km · sunlit</span>
+      </div>
+      <div class="bd stage-wrap" style="padding:0">
+        <div class="stage-fit" id="stage-fit">
+        <canvas id="earth"></canvas>
+        <svg id="stage" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-label="Payload data chain">
           <defs>
-            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#0a0d1a"/>
-              <stop offset="58%" stop-color="#0b0f1e"/>
-              <stop offset="100%" stop-color="#141021"/>
+            <linearGradient id="satBody" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2b3949"/>
+              <stop offset="100%" stop-color="#1a242f"/>
             </linearGradient>
-            <linearGradient id="sunGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#ffd08a" stop-opacity=".55"/>
-              <stop offset="100%" stop-color="#ff4d8d" stop-opacity="0"/>
+            <linearGradient id="panelGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#22303e"/>
+              <stop offset="100%" stop-color="#161f29"/>
             </linearGradient>
-            <radialGradient id="globeGrad" cx="38%" cy="32%" r="78%">
-              <stop offset="0%" stop-color="#1d3a52"/>
-              <stop offset="55%" stop-color="#122539"/>
-              <stop offset="100%" stop-color="#080e18"/>
-            </radialGradient>
-            <radialGradient id="nodeGrad" cx="50%" cy="0%" r="100%">
-              <stop offset="0%" stop-color="#182034"/>
-              <stop offset="100%" stop-color="#0d111c"/>
-            </radialGradient>
-            <clipPath id="globeClip"><circle cx="1000" cy="612" r="152"/></clipPath>
-            <clipPath id="sunClip"><rect x="0" y="386" width="1000" height="84"/></clipPath>
-            <clipPath id="stageClip"><rect x="0" y="0" width="1000" height="600"/></clipPath>
           </defs>
 
-          <g clip-path="url(#stageClip)">
-            <rect x="0" y="0" width="1000" height="600" fill="url(#skyGrad)"/>
-            <g id="stars" opacity=".5"></g>
+          <!-- ---------- connectors ---------- -->
+          <g fill="none" stroke="#2c3542" stroke-width="1" stroke-dasharray="3 3">
+            <path id="path-ingest" d="M180,82 H200"/>
+            <path id="path-sram"   d="M350,82 H370"/>
+            <path id="path-pre"    d="M560,82 H580"/>
+            <path id="path-model"  d="M740,82 H760"/>
+            <path id="path-commit" d="M865,128 V148"/>
+          </g>
 
+          <!-- ---------- 01 INGEST ---------- -->
+          <g id="n-ingest">
+            <rect x="30" y="48" width="150" height="68" fill="#14181e" stroke="#2c3542"/>
+            <text x="42" y="66" fill="#98a4b4" font-size="9.5" letter-spacing="1.1">01 · INGEST</text>
+            <text x="42" y="82" fill="#5f6a79" font-size="8">sensor frame</text>
+            <text x="42" y="97" fill="#c3ccd8" font-size="8.5" id="n-ingest-1">dataset</text>
+            <text x="42" y="110" fill="#7c8797" font-size="8" id="n-ingest-2">0 acquired</text>
+            <circle cx="168" cy="58" r="2.2" fill="#4f9e6a" id="led-ingest"/>
+          </g>
+
+          <!-- ---------- 02 PSRAM ---------- -->
+          <g id="n-sram">
+            <rect x="200" y="48" width="150" height="68" fill="#14181e" stroke="#2c3542"/>
+            <text x="212" y="66" fill="#98a4b4" font-size="9.5" letter-spacing="1.1">02 · PSRAM</text>
+            <text x="212" y="82" fill="#5f6a79" font-size="8" id="n-sram-1">3-slot ring</text>
+            <text x="212" y="97" fill="#c3ccd8" font-size="8.5" id="n-sram-2">0 / 3 slots</text>
+            <rect x="212" y="104" width="126" height="4" fill="#0b0e12" stroke="#1c232c"/>
+            <rect x="212" y="104" width="0" height="4" fill="#7d72ac" id="n-sram-bar"/>
+            <circle cx="338" cy="58" r="2.2" fill="#3a4450" id="led-sram"/>
+          </g>
+
+          <!-- ---------- 03 SRAM TENSOR ---------- -->
+          <g id="n-pre">
+            <rect x="370" y="48" width="190" height="68" fill="#14181e" stroke="#2c3542"/>
+            <text x="382" y="66" fill="#98a4b4" font-size="9.5" letter-spacing="1.1">03 · SRAM TENSOR</text>
+            <text x="382" y="82" fill="#5f6a79" font-size="8">160² int8 · clip(x−128)</text>
+            <text x="382" y="97" fill="#c3ccd8" font-size="8.5" id="n-pre-1">0.0 KB · 0 runs</text>
+            <circle cx="548" cy="58" r="2.2" fill="#3a4450" id="led-pre"/>
+          </g>
+
+          <!-- ---------- 04 MODEL ---------- -->
+          <g id="n-model">
+            <rect x="580" y="48" width="160" height="68" fill="#14181e" stroke="#2c3542"/>
+            <text x="592" y="66" fill="#98a4b4" font-size="9.5" letter-spacing="1.1">04 · MODEL</text>
+            <text x="592" y="82" fill="#c3ccd8" font-size="8.5" id="n-model-1">stub-featurescore</text>
+            <text x="592" y="96" fill="#7c8797" font-size="8" id="n-model-2">rel — / vis —</text>
+            <text x="592" y="109" fill="#5f6a79" font-size="8" id="n-model-3">local</text>
+            <circle cx="728" cy="58" r="2.2" fill="#3a4450" id="led-model"/>
+          </g>
+
+          <!-- ---------- 05 MASS MEMORY ---------- -->
+          <g id="n-mem">
+            <rect x="760" y="48" width="210" height="80" fill="#14181e" stroke="#2c3542"/>
+            <text x="772" y="66" fill="#98a4b4" font-size="9.5" letter-spacing="1.1">05 · MASS MEMORY</text>
+            <text x="772" y="82" fill="#c3ccd8" font-size="8.5" id="n-mem-1">0.00 / 16.00 MB</text>
+            <rect x="772" y="88" width="186" height="5" fill="#0b0e12" stroke="#1c232c"/>
+            <rect x="772" y="88" width="0" height="5" fill="#4f9e6a" id="n-mem-bar"/>
+            <text x="772" y="106" fill="#7c8797" font-size="8" id="n-mem-2">0 frames</text>
+            <text x="772" y="119" fill="#5f6a79" font-size="8" id="n-mem-3">top eff —</text>
+            <circle cx="958" cy="58" r="2.2" fill="#3a4450" id="led-mem"/>
+          </g>
+
+          <!-- ---------- 06 STORAGE ---------- -->
+          <g id="n-gc">
+            <rect x="760" y="148" width="210" height="68" fill="#14181e" stroke="#2c3542"/>
+            <text x="772" y="166" fill="#98a4b4" font-size="9.5" letter-spacing="1.1">06 · STORAGE MGR</text>
+            <text x="772" y="182" fill="#5f6a79" font-size="8" id="n-gc-1">watermark 85% → 60%</text>
+            <text x="772" y="197" fill="#c3ccd8" font-size="8.5" id="n-gc-2">idle</text>
+            <circle cx="958" cy="158" r="2.2" fill="#3a4450" id="led-gc"/>
+          </g>
+
+          <!-- ---------- spacecraft ---------- -->
+          <g id="sat" transform="translate(500,296) scale(1.08)">
+            <!-- orbit arc -->
+            <path d="M-250,96 A 250,104 0 0 1 250,96" fill="none"
+                  stroke="#2c3542" stroke-width="1" stroke-dasharray="2 6"/>
+
+            <!-- solar wings -->
             <g>
-              <line x1="0" y1="470" x2="1000" y2="470" stroke="rgba(255,77,141,.24)" stroke-width="1"/>
-              <g clip-path="url(#sunClip)" opacity=".7">
-                <circle cx="188" cy="470" r="72" fill="url(#sunGrad)"/>
-                <g stroke="#0a0d18" stroke-width="2.6" opacity=".55">
-                  <line x1="112" y1="446" x2="264" y2="446"/>
-                  <line x1="112" y1="432" x2="264" y2="432"/>
-                  <line x1="112" y1="414" x2="264" y2="414"/>
-                </g>
+              <rect x="-206" y="-24" width="104" height="48" fill="url(#panelGrad)" stroke="#3a4a5e"/>
+              <g stroke="#2c3a4a" stroke-width=".7">
+                <line x1="-206" y1="-8" x2="-102" y2="-8"/><line x1="-206" y1="8" x2="-102" y2="8"/>
+                <line x1="-180" y1="-24" x2="-180" y2="24"/><line x1="-154" y1="-24" x2="-154" y2="24"/>
+                <line x1="-128" y1="-24" x2="-128" y2="24"/>
               </g>
+              <rect x="-100" y="-3" width="8" height="6" fill="#3a4a5e"/>
             </g>
-            <g id="perspGrid" opacity=".5"></g>
-
-            <rect x="26" y="26" width="948" height="452" rx="3" fill="none" stroke="#212a40" stroke-width="1" stroke-dasharray="7 6"/>
-            <text x="34" y="20" fill="#3c465e" font-size="9" letter-spacing="3">SAT-1 · ONBOARD BUS</text>
-
-            <g fill="none" stroke-linecap="round">
-              <path id="path-ingest" d="M140,150 L140,236" stroke="#2a3350" stroke-width="1.6"/>
-              <path id="path-sram"   d="M224,272 C 320,272 316,88 396,88" stroke="#2a3350" stroke-width="1.6"/>
-              <path id="path-pre"    d="M592,88 L726,88" stroke="#2a3350" stroke-width="1.6"/>
-              <path id="path-model"  d="M838,130 L838,236" stroke="#2a3350" stroke-width="1.6"/>
-              <path id="path-commit" d="M838,332 L838,392" stroke="#2a3350" stroke-width="1.6"/>
-            </g>
-            <g font-size="8" letter-spacing="1.6" fill="#3f4a63">
-              <text x="146" y="196">RAW FRAMES</text>
-              <text x="248" y="196">3-SLOT RING</text>
-              <text x="616" y="80">INT8 TENSOR</text>
-              <text x="846" y="188">SCORE + RANK</text>
-              <text x="846" y="366">EVICT / RE-ENCODE</text>
-            </g>
-
-            <g id="n-ingest" class="node">
-              <rect x="56" y="72" width="168" height="76" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="68" y="92" fill="#8fa0bd" font-size="9.5" letter-spacing="2">01 INGEST</text>
-              <text x="68" y="112" fill="#66708a" font-size="8" id="n-ingest-1">embedded dataset</text>
-              <text x="68" y="128" fill="#aab6cc" font-size="9" id="n-ingest-2">—</text>
-              <circle cx="210" cy="84" r="3" fill="#5aa9ff" id="led-ingest"/>
-            </g>
-
-            <g id="n-sram" class="node">
-              <rect x="56" y="236" width="168" height="76" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="68" y="256" fill="#8fa0bd" font-size="9.5" letter-spacing="2">02 PSRAM</text>
-              <text x="68" y="276" fill="#66708a" font-size="8" id="n-sram-1">3-slot ring</text>
-              <text x="68" y="292" fill="#aab6cc" font-size="9" id="n-sram-2">0 queued</text>
-              <rect x="68" y="300" width="144" height="4" fill="#080a12" stroke="#161c2c"/>
-              <rect x="68" y="300" width="0" height="4" fill="#9d8bff" id="n-sram-bar"/>
-              <circle cx="210" cy="248" r="3" fill="#9d8bff" id="led-sram"/>
-            </g>
-
-            <g id="n-pre" class="node">
-              <rect x="396" y="52" width="196" height="72" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="408" y="72" fill="#8fa0bd" font-size="9.5" letter-spacing="2">03 SRAM TENSOR</text>
-              <text x="408" y="90" fill="#66708a" font-size="8">160² int8 · quantise</text>
-              <text x="408" y="106" fill="#aab6cc" font-size="9" id="n-pre-1">idle</text>
-              <circle cx="578" cy="64" r="3" fill="#3fd8d8" id="led-pre"/>
-            </g>
-
-            <g id="n-model" class="node">
-              <rect x="726" y="52" width="214" height="78" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="738" y="72" fill="#8fa0bd" font-size="9.5" letter-spacing="2">04 MODEL</text>
-              <text x="738" y="90" fill="#66708a" font-size="8" id="n-model-1">stub-featurescore</text>
-              <text x="738" y="106" fill="#aab6cc" font-size="9" id="n-model-2">rel — / vis —</text>
-              <text x="738" y="120" fill="#4d5770" font-size="8" id="n-model-3">connector · local</text>
-              <circle cx="926" cy="64" r="3" fill="#ffb454" id="led-model"/>
-            </g>
-
-            <g id="n-mem" class="node">
-              <rect x="726" y="236" width="214" height="96" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="738" y="256" fill="#8fa0bd" font-size="9.5" letter-spacing="2">05 MASS MEMORY</text>
-              <text x="738" y="274" fill="#66708a" font-size="8" id="n-mem-1">0.00 / 16.00 MB</text>
-              <rect x="738" y="284" width="190" height="6" fill="#080a12" stroke="#161c2c"/>
-              <rect x="738" y="284" width="0" height="6" fill="#7fdc86" id="n-mem-bar"/>
-              <text x="738" y="308" fill="#aab6cc" font-size="9" id="n-mem-2">0 frames</text>
-              <text x="738" y="322" fill="#4d5770" font-size="8" id="n-mem-3">top score —</text>
-              <circle cx="926" cy="248" r="3" fill="#7fdc86" id="led-mem"/>
-            </g>
-
-            <g id="n-gc" class="node">
-              <rect x="726" y="392" width="214" height="68" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="738" y="412" fill="#8fa0bd" font-size="9.5" letter-spacing="2">06 STORAGE MGR</text>
-              <text x="738" y="430" fill="#66708a" font-size="8" id="n-gc-1">watermark 85% → 60%</text>
-              <text x="738" y="446" fill="#aab6cc" font-size="9" id="n-gc-2">idle</text>
-              <circle cx="926" cy="404" r="3" fill="#ff4d8d" id="led-gc"/>
-            </g>
-
-            <g id="sat" transform="translate(470,330)">
-              <ellipse cx="0" cy="74" rx="118" ry="16" fill="#05070d" opacity=".55"/>
-              <g opacity=".25" stroke="#3fd8d8">
-                <path d="M-176,58 A 176,74 0 0 1 176,58" fill="none" stroke-dasharray="2 8"/>
-              </g>
-              <g id="wingL">
-                <rect x="-186" y="-26" width="96" height="52" rx="1" fill="#101a2e" stroke="#2b4666"/>
-                <g stroke="#22405e" stroke-width=".7">
-                  <line x1="-186" y1="-9" x2="-90" y2="-9"/><line x1="-186" y1="8" x2="-90" y2="8"/>
-                  <line x1="-162" y1="-26" x2="-162" y2="26"/><line x1="-138" y1="-26" x2="-138" y2="26"/>
-                  <line x1="-114" y1="-26" x2="-114" y2="26"/>
-                </g>
-                <rect x="-186" y="-26" width="96" height="52" rx="1" fill="url(#sunGrad)" opacity=".12"/>
-                <rect x="-92" y="-3" width="8" height="6" fill="#2b4666"/>
-              </g>
-              <g id="wingR">
-                <rect x="90" y="-26" width="96" height="52" rx="1" fill="#101a2e" stroke="#2b4666"/>
-                <g stroke="#22405e" stroke-width=".7">
-                  <line x1="90" y1="-9" x2="186" y2="-9"/><line x1="90" y1="8" x2="186" y2="8"/>
-                  <line x1="114" y1="-26" x2="114" y2="26"/><line x1="138" y1="-26" x2="138" y2="26"/>
-                  <line x1="162" y1="-26" x2="162" y2="26"/>
-                </g>
-                <rect x="90" y="-26" width="96" height="52" rx="1" fill="url(#sunGrad)" opacity=".12"/>
-                <rect x="84" y="-3" width="8" height="6" fill="#2b4666"/>
-              </g>
-              <rect x="-40" y="-34" width="80" height="66" rx="3" fill="#141d2f" stroke="#3a5273"/>
-              <rect x="-40" y="-34" width="80" height="66" rx="3" fill="url(#sunGrad)" opacity=".10"/>
-              <line x1="-40" y1="-16" x2="40" y2="-16" stroke="#2b4666" stroke-width=".8"/>
-              <line x1="-40" y1="10" x2="40" y2="10" stroke="#2b4666" stroke-width=".8"/>
-              <rect x="-26" y="-10" width="52" height="16" rx="1" fill="#0a1220" stroke="#24405c"/>
-              <text x="0" y="2" fill="#3fd8d8" font-size="7" letter-spacing="2" text-anchor="middle" opacity=".8">SAT-1</text>
-              <rect x="-15" y="32" width="30" height="26" rx="2" fill="#0e1728" stroke="#3a5273"/>
-              <circle cx="0" cy="45" r="7.5" fill="#060a12" stroke="#5aa9ff" stroke-width="1"/>
-              <circle cx="0" cy="45" r="3" fill="#5aa9ff" opacity=".55"/>
-              <path d="M-11,58 L-22,74 L22,74 L11,58 Z" fill="rgba(90,169,255,.10)" stroke="rgba(90,169,255,.22)" stroke-dasharray="2 3"/>
-              <g transform="translate(0,-34)">
-                <path d="M0,0 L0,-14" stroke="#3a5273"/>
-                <path d="M-16,-14 A 16,10 0 0 1 16,-14 Z" fill="#122033" stroke="#3a5273"/>
-                <circle cx="0" cy="-15" r="1.6" fill="#ffb454"/>
-              </g>
-              <circle cx="-30" cy="-26" r="2" fill="#7fdc86"/>
-              <circle cx="-22" cy="-26" r="2" fill="#7fdc86"/>
-              <circle cx="-14" cy="-26" r="2" fill="#ffb454"/>
-              <text x="0" y="104" fill="#4d5770" font-size="8.5" letter-spacing="2.4" text-anchor="middle">IMAGER · TOWED SENSOR BUS</text>
-            </g>
-
             <g>
-              <path id="gs-link" d="M600,392 C 720,470 810,520 880,556" fill="none"
-                    stroke="#2b3552" stroke-width="1.2" stroke-dasharray="5 7"/>
-              <text x="706" y="486" fill="#3f4a63" font-size="8" letter-spacing="2">LINK · STANDBY</text>
-              <g clip-path="url(#globeClip)">
-                <circle cx="1000" cy="612" r="152" fill="url(#globeGrad)" stroke="#2b4666"/>
-                <g stroke="#2f5878" stroke-width=".7" fill="none" opacity=".75">
-                  <ellipse cx="1000" cy="612" rx="152" ry="52"/>
-                  <ellipse cx="1000" cy="612" rx="152" ry="104"/>
-                  <ellipse cx="1000" cy="612" rx="152" ry="140"/>
-                  <ellipse cx="1000" cy="612" rx="52" ry="152"/>
-                  <ellipse cx="1000" cy="612" rx="104" ry="152"/>
-                  <ellipse cx="1000" cy="612" rx="140" ry="152"/>
-                </g>
-                <g fill="rgba(63,216,216,.16)" stroke="rgba(63,216,216,.35)" stroke-width=".7">
-                  <path d="M918,536 q18,-10 34,2 q-6,12 -22,10 q-14,-2 -12,-12 Z"/>
-                  <path d="M962,566 q22,-6 30,8 q-8,10 -24,4 q-10,-4 -6,-12 Z"/>
-                </g>
-                <circle cx="1000" cy="612" r="152" fill="none" stroke="rgba(255,77,141,.20)" stroke-width="1"/>
+              <rect x="102" y="-24" width="104" height="48" fill="url(#panelGrad)" stroke="#3a4a5e"/>
+              <g stroke="#2c3a4a" stroke-width=".7">
+                <line x1="102" y1="-8" x2="206" y2="-8"/><line x1="102" y1="8" x2="206" y2="8"/>
+                <line x1="128" y1="-24" x2="128" y2="24"/><line x1="154" y1="-24" x2="154" y2="24"/>
+                <line x1="180" y1="-24" x2="180" y2="24"/>
               </g>
-              <rect x="838" y="556" width="152" height="22" rx="2" fill="rgba(8,10,18,.86)" stroke="#2b3552"/>
-              <text x="848" y="571" fill="#8fa0bd" font-size="9" letter-spacing="2">GS-1 · STANDBY</text>
+              <rect x="92" y="-3" width="8" height="6" fill="#3a4a5e"/>
             </g>
+
+            <!-- bus -->
+            <rect x="-42" y="-32" width="84" height="62" fill="url(#satBody)" stroke="#46586d"/>
+            <line x1="-42" y1="-14" x2="42" y2="-14" stroke="#3a4a5e" stroke-width=".8"/>
+            <line x1="-42" y1="12" x2="42" y2="12" stroke="#3a4a5e" stroke-width=".8"/>
+            <rect x="-28" y="-9" width="56" height="16" fill="#101820" stroke="#2f4054"/>
+            <text x="0" y="3" fill="#7fb0e0" font-size="7" letter-spacing="2" text-anchor="middle">SAT-1</text>
+
+            <!-- imager -->
+            <rect x="-16" y="30" width="32" height="26" fill="#131c26" stroke="#46586d"/>
+            <circle cx="0" cy="43" r="7.5" fill="#070b10" stroke="#4d8fd6"/>
+            <circle cx="0" cy="43" r="3" fill="#4d8fd6" opacity=".5"/>
+            <path d="M-12,56 L-24,74 L24,74 L12,56 Z" fill="rgba(77,143,214,.07)"
+                  stroke="rgba(77,143,214,.22)" stroke-dasharray="2 3"/>
+
+            <!-- antenna -->
+            <g transform="translate(0,-32)">
+              <path d="M0,0 L0,-14" stroke="#46586d"/>
+              <path d="M-16,-14 A 16,10 0 0 1 16,-14 Z" fill="#1b2632" stroke="#46586d"/>
+              <circle cx="0" cy="-15" r="1.5" fill="#c2922f"/>
+            </g>
+
+            <circle cx="-32" cy="-25" r="2" fill="#4f9e6a"/>
+            <circle cx="-24" cy="-25" r="2" fill="#4f9e6a"/>
+            <circle cx="-16" cy="-25" r="2" fill="#c2922f"/>
           </g>
         </svg>
-        <div class="stage-legend">
-          <span><i style="background:#5aa9ff"></i>INGEST</span>
-          <span><i style="background:#9d8bff"></i>SRAM</span>
-          <span><i style="background:#3fd8d8"></i>PRE</span>
-          <span><i style="background:#ffb454"></i>MODEL</span>
-          <span><i style="background:#7fdc86"></i>COMMIT</span>
-          <span><i style="background:#ff4d8d"></i>GC</span>
+        </div>
+
+        <div class="stage-foot">
+          <span><i style="background:#4f9e6a"></i>INGEST</span>
+          <span><i style="background:#7d72ac"></i>PSRAM</span>
+          <span><i style="background:#4d8fd6"></i>SRAM TENSOR</span>
+          <span><i style="background:#c2922f"></i>MODEL</span>
+          <span><i style="background:#4f9e6a"></i>COMMIT</span>
+          <span style="margin-left:auto">ORTHOGRAPHIC · 2.4°/s</span>
         </div>
       </div>
     </section>
   </div>
 
-  <!-- ============ RIGHT ============ -->
+  <!-- ================= RIGHT ================= -->
   <div class="col col-right">
+
     <section class="panel">
-      <span class="ttl"><b>FRAME</b><span class="sep">/</span>last processed</span>
-      <div class="body" style="padding:11px 10px 9px">
-        <div class="preview-box dual">
-          <div class="pcol">
+      <div class="hd">
+        <span class="t">Frame / tensor</span>
+        <span class="meta" id="prev-badge">NO FRAME</span>
+      </div>
+      <div class="bd">
+        <div class="pv">
+          <div class="c">
             <canvas id="preview" width="320" height="320"></canvas>
-            <span class="pcap" id="cap-psram">PSRAM · —</span>
+            <span class="cap" id="cap-psram">PSRAM · —</span>
           </div>
-          <div class="pcol">
+          <div class="c">
             <canvas id="tensorview" width="160" height="160"></canvas>
-            <span class="pcap" id="cap-sram">SRAM · —</span>
+            <span class="cap" id="cap-sram">SRAM · —</span>
           </div>
-          <span class="preview-badge" id="prev-badge">NO FRAME</span>
         </div>
         <div class="hist" id="hist"></div>
-        <div class="feat">
-          <div class="f"><span>RELEVANCE</span><span id="f-rel">—</span></div>
-          <div class="f"><span>VISIBILITY</span><span id="f-vis">—</span></div>
-          <div class="f"><span>PRIORITY</span><span id="f-prio">—</span></div>
-          <div class="f"><span>CLOUD</span><span id="f-cloud">—</span></div>
-          <div class="f"><span>EDGE</span><span id="f-edge">—</span></div>
-          <div class="f"><span>ENTROPY</span><span id="f-ent">—</span></div>
+        <div class="tm" style="margin-top:5px">
+          <div class="r"><span class="k">Relevance</span><span class="v" id="f-rel">—</span></div>
+          <div class="r"><span class="k">Visibility</span><span class="v" id="f-vis">—</span></div>
+          <div class="r"><span class="k">Priority</span><span class="v" id="f-prio">—</span></div>
+          <div class="r"><span class="k">Cloud cover</span><span class="v" id="f-cloud">—</span></div>
+          <div class="r"><span class="k">Edge density</span><span class="v" id="f-edge">—</span></div>
+          <div class="r"><span class="k">Entropy</span><span class="v" id="f-ent">—</span></div>
         </div>
-        <div class="field" style="margin-top:6px;margin-bottom:0">
-          <label style="font-size:8.5px">cloud-mask overlay</label>
-          <button id="btn-mask" class="ghost" style="padding:2px 6px">off</button>
+        <div style="display:flex;justify-content:flex-end;margin-top:5px">
+          <button id="btn-mask" class="ghost" style="padding:2px 7px">mask off</button>
         </div>
       </div>
     </section>
 
     <section class="panel grow">
-      <span class="ttl"><b>TRACE</b><span class="sep">/</span>pipeline stdout</span>
-      <div class="body" style="padding:6px 6px 5px;display:flex;flex-direction:column;min-height:0">
-        <div class="trace" id="trace"></div>
+      <div class="hd"><span class="t">Event log</span><span class="meta">UTC · rolling</span></div>
+      <div class="bd" style="padding:5px 6px">
+        <div class="log" id="log"></div>
       </div>
     </section>
   </div>
 
-  <!-- ============ DOCK ============ -->
+  <!-- ================= DOCK ================= -->
   <section class="panel dock">
-    <div class="dockhead">
-      <span class="name"><b>STORAGE</b> / live ranking</span>
+    <div class="dock-hd">
+      <span class="t">Mass memory · frame index</span>
       <div class="memwrap">
-        <span class="lbl" id="dock-mem-lbl"><b>0.00</b> / 16.00 MB</span>
-        <div class="bar"><i id="dock-mem-bar" class="amber"></i><span class="tick" id="dock-wm"></span></div>
-        <span class="lbl" id="dock-mem-pct">0%</span>
+        <span class="l" id="dock-mem-lbl"><b>0.00</b> / 16.00 MB</span>
+        <div class="bar"><i id="dock-mem-bar" class="amber"></i><span class="mk" id="dock-wm"></span></div>
+        <span class="l" id="dock-mem-pct">0%</span>
       </div>
       <span class="spacer"></span>
-      <span class="lbl" style="font-size:8.5px;color:var(--dim2)" id="dock-note">0 frames</span>
-      <button id="btn-clear" class="ghost" style="padding:2px 6px">purge</button>
+      <span class="l" style="font-family:var(--mono);font-size:9px;color:var(--dim2)" id="dock-note">0 frames</span>
+      <button id="btn-clear" class="ghost" style="padding:2px 7px">purge</button>
     </div>
-    <div class="dockbody">
-      <table class="store">
+    <div class="dock-bd">
+      <table class="tbl">
         <thead>
           <tr>
-            <th class="rk">#</th><th>ID</th><th class="thcol">·</th><th>TILE</th>
-            <th class="num">SIZE</th><th class="num">Q</th><th class="num">REL</th>
-            <th class="num">VIS</th><th class="num">PRIO</th><th class="num">EFF</th><th>STATE</th>
+            <th class="rk">#</th><th>Frame id</th><th class="thcol"></th><th>Tile</th>
+            <th class="num">Size</th><th class="num">Q</th><th class="num">Rel</th>
+            <th class="num">Vis</th><th class="num">Prio</th><th class="num">Eff</th><th class="stt">State</th>
           </tr>
         </thead>
         <tbody id="store-body"></tbody>
       </table>
-      <div class="empty" id="store-empty">no frames in mass memory — pipeline idle</div>
+      <div class="empty" id="store-empty">no frames in mass memory</div>
     </div>
   </section>
 
@@ -414,43 +371,43 @@
 
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer">
-  <div class="dhead">
-    <h2>Settings</h2>
+  <div class="dh">
+    <h2>Configuration</h2>
     <button id="btn-close-settings" class="ghost">close</button>
   </div>
-  <div class="dbody">
+  <div class="db">
 
-    <div class="dgroup">
+    <div class="dg">
       <div class="gh">Memory</div>
       <div class="gb">
         <div class="field">
-          <label>Satellite mass memory <small>total onboard store, MB</small></label>
+          <label>Mass memory <small>MB, onboard store</small></label>
           <input type="number" id="cfg-mass" value="16" min="1" max="1024" step="1">
         </div>
         <div class="field">
-          <label>SRAM buffer <small>fixed by design</small></label>
-          <span class="fixedtag">4.20 MB</span>
+          <label>SRAM limit <small>fixed by design</small></label>
+          <span class="tag-fixed">4.20 MB</span>
         </div>
         <div class="field">
-          <label>High watermark <small>GC triggers above this fill</small></label>
+          <label>High watermark <small>GC trigger, %</small></label>
           <input type="number" id="cfg-high" value="85" min="40" max="99" step="1">
         </div>
         <div class="field">
-          <label>GC target <small>evict down to this fill</small></label>
+          <label>GC target <small>evict down to, %</small></label>
           <input type="number" id="cfg-target" value="60" min="10" max="95" step="1">
         </div>
         <div class="field">
-          <label>Min quality floor <small>below this a frame is dropped</small></label>
+          <label>Quality floor</label>
           <input type="number" id="cfg-qfloor" value="0.35" min="0.1" max="0.9" step="0.05">
         </div>
         <div class="field">
-          <label>Protect top-N <small>never compressed or evicted</small></label>
+          <label>Protect top-N <small>never compressed</small></label>
           <input type="number" id="cfg-protect" value="3" min="0" max="50" step="1">
         </div>
       </div>
     </div>
 
-    <div class="dgroup">
+    <div class="dg">
       <div class="gh">Ingest</div>
       <div class="gb">
         <div class="field wide">
@@ -458,7 +415,7 @@
           <select id="cfg-source">
             <option value="dataset">embedded dataset</option>
             <option value="url">remote URL</option>
-            <option value="file">local file (browser picker)</option>
+            <option value="file">local file</option>
           </select>
         </div>
         <div class="field wide" id="row-tile">
@@ -466,84 +423,79 @@
           <select id="cfg-tile"></select>
         </div>
         <div class="field wide" id="row-url" style="display:none">
-          <label>Image URL <small>needs CORS-enabled host</small></label>
+          <label>Image URL <small>CORS-enabled host required</small></label>
           <input type="text" id="cfg-url" placeholder="https://example.com/tile.jpg">
         </div>
         <div class="field wide" id="row-file" style="display:none">
-          <label>Local file <small>read in-browser, never uploaded</small></label>
+          <label>Local file <small>read in-browser</small></label>
           <input type="file" id="cfg-file" accept="image/*" style="font-size:9px;color:var(--dim)">
         </div>
         <div class="field">
-          <label>Capture interval <small>ms between frames</small></label>
+          <label>Capture interval <small>ms</small></label>
           <input type="number" id="cfg-interval" value="900" min="200" max="10000" step="100">
         </div>
         <div class="field">
-          <label>Reject below relevance <small>0 = keep everything</small></label>
+          <label>Reject below relevance <small>0 = keep all</small></label>
           <input type="number" id="cfg-reject" value="0" min="0" max="100" step="1">
         </div>
         <div class="field">
-          <label>Tensor resolution <small>SRAM scratchpad edge, px</small></label>
+          <label>Tensor resolution <small>px, SRAM scratchpad</small></label>
           <input type="number" id="cfg-tres" value="160" min="64" max="2048" step="16">
         </div>
         <div class="field">
-          <label>PSRAM ring slots <small>raw frames staged</small></label>
+          <label>PSRAM ring slots</label>
           <input type="number" id="cfg-slots" value="3" min="1" max="8" step="1">
         </div>
       </div>
     </div>
 
-    <div class="dgroup">
+    <div class="dg">
       <div class="gh">Model connector</div>
       <div class="gb">
         <div class="field">
-          <label>Connector id</label>
-          <span class="fixedtag" id="cfg-conn-id">stub-featurescore</span>
+          <label>Connector</label>
+          <span class="tag-fixed" id="cfg-conn-id">stub-featurescore</span>
         </div>
         <div class="field">
           <label>Relevance weight <small>priority = w·rel + (1−w)·vis</small></label>
           <input type="range" id="cfg-wrel" value="0.6" min="0" max="1" step="0.05">
         </div>
         <div class="field">
-          <label>Simulated latency <small>ms per inference</small></label>
+          <label>Inference latency <small>ms</small></label>
           <input type="number" id="cfg-latency" value="90" min="0" max="2000" step="10">
         </div>
         <div class="field wide">
-          <label>Endpoint <small>POST feature vector, expect {relevance, visibility}</small></label>
+          <label>Endpoint <small>POST features, expect {relevance, visibility}</small></label>
           <input type="text" id="cfg-endpoint" placeholder="http://localhost:8000/score">
         </div>
         <div class="hint" style="margin-top:6px">
-          Swap it at runtime from the console:
-          <code>SAT.model.register({id:'m',version:'1',async infer(f){return {relevance:0-100,visibility:0-100}}})</code>.
-          <code>f</code> = <code>mean, std, entropy, cloudFrac, edgeFrac, brightFrac</code>.
+          Swap at runtime:
+          <code>SAT.model.register({id:'m',version:'1',async infer(f){return {relevance,visibility}}})</code>.
           See <code>model/README.md</code>.
         </div>
       </div>
     </div>
 
-    <div class="dgroup">
+    <div class="dg">
       <div class="gh">Notes</div>
       <div class="gb">
         <div class="hint">
-          Frame bytes are a real JPEG encode of the tile. Re-encode sizes on compression use the encoder
-          model <code>b = b₀·(q/q₀)^1.9</code>. Effective rank <code>eff = priority · (0.5 + 0.5·q/q₀)</code>,
-          so compression visibly demotes a frame.
-          <br><br>
           Ingress follows <code>preprocess/reference/Cubesatsim_dataintake.py</code>:
           raw frame → 3-slot PSRAM ring → area-average resize → INT8
-          (<code>clip(x-128, -128, 127)</code>) → 4.2 MB SRAM guard → features
+          (<code>clip(x−128, −128, 127)</code>) → 4.2 MB SRAM guard → features
           measured on the de-quantised tensor.
           <br><br>
-          Tiles are real public-domain satellite imagery (NASA / USGS / NOAA / ESA via Wikimedia Commons),
-          cycled in a fixed order — no random generation. Each pass applies a small deterministic crop
-          offset so a revisited tile is not byte-identical.
+          Tiles are public-domain satellite imagery (NASA / USGS / NOAA / ESA via
+          Wikimedia Commons), cycled in a fixed order. Each pass applies a deterministic
+          crop offset so a revisit is not byte-identical.
           <br><br>
-          <span id="credits" style="color:#4d5770"></span>
+          <span id="credits" style="color:#4a5462"></span>
         </div>
       </div>
     </div>
 
   </div>
-  <div class="dfoot">
+  <div class="df">
     <button id="btn-reset-cfg" class="ghost">defaults</button>
     <button id="btn-done-settings">apply &amp; close</button>
   </div>
@@ -551,24 +503,27 @@
 
 <div class="fatal" id="fatal" style="display:none">
   <div class="fcard">
-    <h3>Pixels unreadable</h3>
-    <p>The browser is refusing to hand canvas pixels to the page. That happens when
-       <code>index.html</code> is opened straight off disk (<code>file://</code>) — images loaded
-       from the filesystem taint the canvas, and the preprocessing stage cannot read them.</p>
-    <p>Serve the folder over HTTP instead:</p>
+    <h3>Canvas pixels unavailable</h3>
+    <p>The browser is refusing to expose canvas pixels to the page. That happens when
+       <code>index.html</code> is opened straight off disk (<code>file://</code>) — images
+       loaded from the filesystem taint the canvas and the preprocessing stage cannot
+       read them.</p>
+    <p>Serve the folder over HTTP:</p>
     <pre>cd sat-img-pipe
 python3 serve.py
-# then open http://localhost:8000</pre>
+# open http://localhost:8000</pre>
     <button onclick="document.getElementById('fatal').style.display='none'">dismiss</button>
   </div>
 </div>
 
 <script src="js/config.js"></script>
 <script src="dataset/manifest.js"></script>
+<script src="js/earth-data.js"></script>
 <script src="preprocess/index.js"></script>
 <script src="model/index.js"></script>
 <script src="model/stub-featurescore.js"></script>
 <script src="js/log.js"></script>
+<script src="js/earth.js"></script>
 <script src="js/stage.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/ui.js"></script>

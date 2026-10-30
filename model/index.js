@@ -48,7 +48,7 @@ SAT.model = (function(){
     if (activate || !api.active){
       api.active = connector;
       if (api.onChange) api.onChange(connector);
-      if (SAT.log) SAT.log('MODEL', 'active connector → <b>' + util.esc(connector.id) + '</b>/' +
+      if (SAT.log) SAT.log('MODEL', 'connector <b>' + util.esc(connector.id) + '</b>/' +
                                    util.esc(connector.version || '?'), 'warn');
     }
     return true;

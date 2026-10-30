@@ -1,6 +1,7 @@
 /* =====================================================================
-   js/log.js — the trace panel
-   Keeps only as many lines as fit the panel, so nothing ever scrolls.
+   js/log.js — event log
+   Ground-segment log format: timestamp, severity, source, message.
+   Keeps only as many lines as fit, so the panel never scrolls.
    ===================================================================== */
 window.SAT = window.SAT || {};
 
@@ -11,7 +12,7 @@ SAT.log = (function(){
   var el = null, count = 0;
 
   function panel(){
-    if (!el) el = util.$('#trace');
+    if (!el) el = util.$('#log');
     return el;
   }
 
@@ -21,22 +22,35 @@ SAT.log = (function(){
     return Math.max(3, Math.floor(h / 13));
   }
 
+  /* tag -> source column; cls -> severity column */
+  var SEV = { err: 'FAULT', warn: 'WARN' };
+
   /**
    * @param {string} tag   INGEST | SRAM | PRE | MODEL | COMMIT | GC | SYS | ERR
    * @param {string} msg   may contain <b>, <em>, <u>, <i> for emphasis
-   * @param {string} [cls] 'warn' | 'err'
+   * @param {string} [cls] 'warn' | 'err' | 'ok'
    */
   function log(tag, msg, cls){
     var p = panel();
     if (!p) return;
-    var t = ((util.now() - SAT.state.t0) / 1000).toFixed(1).padStart(5, ' ');
+
+    var t = new Date();
+    var ts = String(t.getUTCHours()).padStart(2,'0') + ':' +
+             String(t.getUTCMinutes()).padStart(2,'0') + ':' +
+             String(t.getUTCSeconds()).padStart(2,'0') + '.' +
+             String(t.getUTCMilliseconds()).padStart(3,'0');
+
+    var sev = SEV[cls] || (cls === 'ok' ? 'OK' : 'INFO');
+
     var div = document.createElement('div');
     div.className = 'ln' + (cls ? ' ' + cls : '');
-    div.innerHTML = '<span class="t">' + t + '</span>'
-                  + '<span class="tag ' + tag + '">' + tag + '</span>'
+    div.innerHTML = '<span class="t">' + ts + '</span>'
+                  + '<span class="sev ' + sev + '">' + sev + '</span>'
+                  + '<span class="src">' + tag + '</span>'
                   + '<span class="msg">' + msg + '</span>';
     p.appendChild(div);
     count++;
+
     var cap = maxLines();
     while (count > cap && p.firstElementChild){
       p.firstElementChild.remove();
