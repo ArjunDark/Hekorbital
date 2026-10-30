@@ -14,12 +14,14 @@ SAT.ui = (function(){
 
   var previewCv = $('#preview');
   var pctx = previewCv.getContext('2d');
+  var tensorCv = $('#tensorview');
+  var tctx = tensorCv.getContext('2d');
 
   /* ---------------------------------------------------------------- */
   /* frame preview                                                     */
   /* ---------------------------------------------------------------- */
-  function drawMask(mask){
-    var overlay = SAT.preprocess.maskOverlay(mask);
+  function drawMask(mask, res){
+    var overlay = SAT.preprocess.maskOverlay(mask, res);
     pctx.globalAlpha = 0.85;
     pctx.drawImage(overlay, 0, 0, previewCv.width, previewCv.height);
     pctx.globalAlpha = 1;
@@ -27,11 +29,28 @@ SAT.ui = (function(){
 
   function renderPreview(f, feats){
     S.lastFrame = f;
+    S.lastFeats = feats;
+
+    /* left: the frame as it sits in PSRAM */
     pctx.clearRect(0, 0, previewCv.width, previewCv.height);
     pctx.drawImage(f.canvas, 0, 0, previewCv.width, previewCv.height);
-    if (S.maskOn && feats && feats.mask) drawMask(feats.mask);
+    if (S.maskOn && feats && feats.mask) drawMask(feats.mask, feats.maskRes);
+
+    /* right: the INT8 tensor as it sits in SRAM, nearest-neighbour so the
+       quantisation grid stays visible */
+    tctx.imageSmoothingEnabled = false;
+    tctx.clearRect(0, 0, tensorCv.width, tensorCv.height);
+    if (feats && feats.tensor){
+      var tc = SAT.preprocess.tensorCanvas(feats.tensor, feats.tensorRes);
+      tctx.drawImage(tc, 0, 0, tensorCv.width, tensorCv.height);
+    }
 
     $('#prev-badge').textContent = f.id;
+    $('#cap-psram').textContent = 'PSRAM · ' + f.canvas.width + '² · ' +
+      (f.canvas.width * f.canvas.height * 4 / 1048576).toFixed(2) + ' MB raw';
+    $('#cap-sram').textContent = 'SRAM · ' + (feats ? feats.tensorRes : 0) + '² int8 · ' +
+      (feats ? (feats.tensorBytes / 1024).toFixed(1) + ' KB' : '—');
+
     $('#f-rel').textContent = f.rel.toFixed(1);
     $('#f-vis').textContent = f.vis.toFixed(1);
     $('#f-prio').textContent = f.prio.toFixed(1);
@@ -56,16 +75,20 @@ SAT.ui = (function(){
     if (!S.lastFrame) return;
     pctx.clearRect(0, 0, previewCv.width, previewCv.height);
     pctx.drawImage(S.lastFrame.canvas, 0, 0, previewCv.width, previewCv.height);
-    if (S.maskOn && S.lastMask) drawMask(S.lastMask);
+    if (S.maskOn && S.lastMask) drawMask(S.lastMask, S.lastFeats ? S.lastFeats.maskRes : undefined);
   }
 
   function clearPreview(){
     pctx.fillStyle = '#080a12';
     pctx.fillRect(0, 0, previewCv.width, previewCv.height);
+    tctx.fillStyle = '#080a12';
+    tctx.fillRect(0, 0, tensorCv.width, tensorCv.height);
     pctx.fillStyle = '#2b3552';
     pctx.font = '11px monospace';
     pctx.fillText('awaiting first frame', 14, 24);
     $('#prev-badge').textContent = 'NO FRAME';
+    $('#cap-psram').textContent = 'PSRAM · —';
+    $('#cap-sram').textContent = 'SRAM · —';
     ['#f-rel','#f-vis','#f-prio','#f-cloud','#f-edge','#f-ent'].forEach(function(s){ $(s).textContent = '—'; });
     $('#hist').innerHTML = '';
   }
@@ -74,15 +97,26 @@ SAT.ui = (function(){
   /* device panels + stage readouts                                    */
   /* ---------------------------------------------------------------- */
   function renderDevices(){
-    var sramPct = (S.sramBytes / SAT.SRAM_BYTES) * 100;
+    var pp = SAT.preprocess;
+    var slots = pp.psram.length, slotsMax = pp.PSRAM_SLOTS;
+    var psramPct = (slots / slotsMax) * 100;
+    var tBytes = pp.lastTensor ? pp.lastTensor.bytes : 0;
+    var tensorPct = (tBytes / pp.SRAM_LIMIT) * 100;
+
     var cap = cfg.massMB * MB;
     var used = SAT.storage.totalBytes();
     var memPct = (used / cap) * 100;
 
-    $('#sat-sram').textContent = (S.sramBytes / MB).toFixed(2) + ' / 4.20 MB';
+    $('#sat-sram').textContent = slots + ' / ' + slotsMax + ' slots · ' +
+                                 (pp.psramBytes() / MB).toFixed(2) + ' MB';
     var sb = $('#sat-sram-bar');
-    sb.style.width = util.clamp(sramPct, 0, 100).toFixed(1) + '%';
-    sb.className = sramPct > 90 ? 'red' : sramPct > 65 ? 'amber' : '';
+    sb.style.width = util.clamp(psramPct, 0, 100).toFixed(1) + '%';
+    sb.className = psramPct >= 100 ? 'red' : psramPct > 66 ? 'amber' : '';
+
+    $('#sat-tensor').textContent = (tBytes / 1024).toFixed(1) + ' KB / 4.20 MB';
+    var tb = $('#sat-tensor-bar');
+    tb.style.width = Math.max(0.6, util.clamp(tensorPct, 0, 100)).toFixed(1) + '%';
+    tb.className = tensorPct > 85 ? 'red' : '';
 
     $('#sat-mem').textContent = (used / MB).toFixed(2) + ' / ' + cfg.massMB.toFixed(2) + ' MB';
     var mb = $('#sat-mem-bar');
@@ -101,7 +135,7 @@ SAT.ui = (function(){
     $('#sat-commit').textContent = S.stats.committed;
     $('#sat-rej').textContent = S.stats.rejected;
 
-    SAT.stage.led('#led-buf', S.sramBytes > SAT.SRAM_BYTES * 0.85 ? 'crit' : S.sram.length ? 'busy' : 'off');
+    SAT.stage.led('#led-buf', slots >= slotsMax ? 'crit' : slots ? 'busy' : 'off');
     SAT.stage.led('#led-mem', memPct > cfg.highWater ? 'crit' : used > 0 ? 'on' : 'off');
     SAT.stage.led('#led-gc', (S.stats.compressed || S.stats.evicted) ? 'on' : 'off');
 
@@ -111,7 +145,7 @@ SAT.ui = (function(){
     $('#p-store').textContent = SAT.storage.stored().length;
     $('#p-comp').textContent = S.stats.compressed;
     $('#p-evict').textContent = S.stats.evicted;
-    $('#p-stall').textContent = S.stats.stalls;
+    $('#p-stall').textContent = S.psramDrops;
 
     /* dock memory bar */
     $('#dock-mem-lbl').innerHTML = '<b>' + (used / MB).toFixed(2) + '</b> / ' + cfg.massMB.toFixed(2) + ' MB';
@@ -125,11 +159,12 @@ SAT.ui = (function(){
     $('#n-ingest-1').textContent = cfg.source === 'dataset'
       ? (cfg.tile === 'cycle' ? 'embedded · cycling' : cfg.tile) : cfg.source;
     $('#n-ingest-2').textContent = S.stats.captured + ' frames acquired';
-    $('#n-sram-2').textContent = S.sram.length + ' queued · ' + util.fmtB(S.sramBytes);
+    $('#n-sram-2').textContent = slots + '/' + slotsMax + ' slots · ' +
+                                  (pp.psramBytes() / MB).toFixed(2) + ' MB';
     var nsb = $('#n-sram-bar');
-    nsb.setAttribute('width', (144 * util.clamp(sramPct, 0, 100) / 100).toFixed(1));
-    nsb.setAttribute('fill', sramPct > 85 ? '#ff4d8d' : sramPct > 60 ? '#ffb454' : '#9d8bff');
-    $('#n-pre-1').textContent = S.stats.pre + ' preprocessed';
+    nsb.setAttribute('width', (144 * util.clamp(psramPct, 0, 100) / 100).toFixed(1));
+    nsb.setAttribute('fill', psramPct >= 100 ? '#ff4d8d' : psramPct > 66 ? '#ffb454' : '#9d8bff');
+    $('#n-pre-1').textContent = (tBytes / 1024).toFixed(1) + ' KB int8 · ' + S.stats.pre + ' run';
 
     var d = SAT.model.describe();
     $('#n-model-1').textContent = d.id;
@@ -292,6 +327,17 @@ SAT.ui = (function(){
     bindNum('#cfg-interval', 'interval');
     bindNum('#cfg-reject', 'rejectBelow');
 
+    /* --- ingress / SRAM scratchpad --- */
+    bindNum('#cfg-tres', 'tensorRes', function(v){
+      SAT.preprocess.TENSOR_RES = v;
+      SAT.log('SYS', 'tensor resolution → <em>' + v + '²</em> (' +
+                      (v * v * 3 / 1024).toFixed(1) + ' KB int8)');
+    });
+    bindNum('#cfg-slots', 'psramSlots', function(v){
+      SAT.preprocess.PSRAM_SLOTS = v;
+      SAT.log('SYS', 'PSRAM ring depth → <em>' + v + '</em> slots');
+    });
+
     /* --- model --- */
     bindNum('#cfg-latency', 'latency');
     $('#cfg-wrel').addEventListener('input', function(e){
@@ -332,12 +378,16 @@ SAT.ui = (function(){
     /* --- defaults --- */
     $('#btn-reset-cfg').addEventListener('click', function(){
       Object.assign(cfg, SAT.DEFAULTS);
+      SAT.preprocess.TENSOR_RES = cfg.tensorRes;
+      SAT.preprocess.PSRAM_SLOTS = cfg.psramSlots;
       $('#cfg-mass').value = cfg.massMB;
       $('#cfg-high').value = cfg.highWater;
       $('#cfg-target').value = cfg.targetWater;
       $('#cfg-qfloor').value = cfg.qFloor;
       $('#cfg-protect').value = cfg.protectTop;
       $('#cfg-interval').value = cfg.interval;
+      $('#cfg-tres').value = cfg.tensorRes;
+      $('#cfg-slots').value = cfg.psramSlots;
       $('#cfg-reject').value = cfg.rejectBelow;
       $('#cfg-latency').value = cfg.latency;
       $('#cfg-wrel').value = cfg.wRel;

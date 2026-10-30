@@ -143,8 +143,15 @@ button.danger:hover{border-color:var(--red);color:var(--red)}
 .stage-legend i{display:inline-block;width:6px;height:6px;margin-right:3px;vertical-align:middle}
 
 /* ---------- preview ---------- */
-.preview-box{position:relative;border:1px solid #171d2c;background:var(--inset);line-height:0;display:flex;justify-content:center}
-#preview{height:min(24vh,250px);width:auto;max-width:100%;display:block;margin:0 auto}
+.preview-box{position:relative;border:1px solid #171d2c;background:var(--inset);line-height:0}
+.preview-box.dual{display:flex;gap:5px;padding:4px;align-items:stretch}
+.preview-box.dual .pcol{flex:1 1 0;min-width:0;position:relative;display:flex;flex-direction:column}
+.preview-box.dual canvas{width:100%;height:auto;display:block;border:1px solid #141a28}
+#tensorview{image-rendering:pixelated}
+.pcap{
+  display:block;font-size:7.5px;letter-spacing:.06em;color:var(--dim);
+  line-height:1.5;padding-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .preview-badge{
   position:absolute;top:4px;left:5px;font-size:8px;letter-spacing:.1em;
   background:rgba(7,8,15,.82);border:1px solid #232b40;padding:0 4px;color:var(--green);line-height:1.5;
@@ -270,7 +277,7 @@ table.store tr.flash-out{animation:rowout .55s ease-out}
 .scrim.on{opacity:1;pointer-events:auto}
 
 @media (max-height:830px){
-  #preview{height:min(15vh,140px)}
+  .preview-box.dual canvas{max-height:120px}
   .spark{display:none}
   .hint.long{display:none}
   .app{grid-template-rows:auto minmax(0,1fr) 150px}

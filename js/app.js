@@ -116,6 +116,7 @@ SAT.app = (function(){
     S.seq++;
     if (S.seq % SAT.dataset.tiles.length === 0) S.pass++;
 
+    /* mass-memory footprint of the frame, as it would be stored */
     var bytes0;
     try {
       bytes0 = SAT.storage.encodeBytes(got.canvas, 0.9);
@@ -124,56 +125,73 @@ SAT.app = (function(){
       return;
     }
 
-    if (S.sramBytes + bytes0 > SAT.SRAM_BYTES){
-      S.stats.stalls++;
-      SAT.log('SRAM', '<u>full</u> ' + (S.sramBytes / MB).toFixed(2) + '/4.20M — ' +
-                      util.esc(got.name) + ' held', 'warn');
-      SAT.stage.led('#led-buf', 'busy');
-      return;
+    /* --- PSRAM ingress: stage the raw frame in the ring --- */
+    var packet = SAT.preprocess.ingest(got.canvas, got);
+    packet.bytes0 = bytes0;
+    packet.thumb = SAT.storage.thumbURL(got.canvas);
+    packet.seq = S.seq;
+
+    var before = SAT.preprocess.psram.length;
+    var slots = SAT.preprocess.stage(packet);
+    if (before >= SAT.preprocess.PSRAM_SLOTS){
+      S.psramDrops++;
+      SAT.log('SRAM', '<u>ring full</u> — oldest packet dropped at ' +
+                      SAT.preprocess.PSRAM_SLOTS + ' slots', 'warn');
     }
 
-    var f = {
-      id: got.name, tile: got.tile, label: got.label, seq: S.seq, ts: Date.now(),
-      canvas: got.canvas, thumb: SAT.storage.thumbURL(got.canvas),
-      bytes0: bytes0, q0: 0.90, quality: 0.90, bytes: bytes0,
-      rel: 0, vis: 0, prio: 0, eff: 0, rank: 0, qfactor: 1, state: 'sram'
-    };
-
-    SAT.storage.pushSram(f);
     S.stats.captured++;
-    SAT.log('INGEST', '<b>' + util.esc(f.id) + '</b> ' + (bytes0 / KB | 0) + 'K → SRAM ' +
-                      (S.sramBytes / MB).toFixed(2) + '/4.20M');
+    SAT.log('INGEST', '<b>' + util.esc(packet.id) + '</b> raw ' + packet.width + '×' + packet.height +
+                      ' ' + (packet.rawBytes / MB).toFixed(2) + ' MB → PSRAM ' + slots + '/' +
+                      SAT.preprocess.PSRAM_SLOTS);
     SAT.stage.flash('#n-ingest');
     SAT.stage.send('ingest', '#5aa9ff');
   }
 
   async function processHead(){
-    if (!S.sram.length) return;
-    var f = SAT.storage.shiftSram();
+    var packet = SAT.preprocess.pop();
+    if (!packet) return;
     SAT.stage.flash('#n-sram');
     SAT.stage.send('sram', '#9d8bff');
 
-    /* --- preprocess --- */
+    /* --- SRAM scratchpad: area-resize, INT8 quantise, limit check --- */
     var feats;
     try {
-      feats = SAT.preprocess.run(f.canvas);
+      feats = SAT.preprocess.run(packet.canvas);
     } catch (e){
+      if (e && e.code === 'SRAM_FAULT'){
+        SAT.log('ERR', '<u>SRAM fault</u> — ' + util.esc(e.message), 'err');
+        SAT.log('ERR', 'lower the tensor resolution in settings', 'err');
+        S.stats.rejected++;
+        return;
+      }
       fatal(e);
       return;
     }
     S.stats.pre++;
     S.lastMask = feats.mask;
 
-    SAT.log('PRE', SAT.dataset.tileSize + '→' + SAT.preprocess.DOWNSCALE +
-                   ' μ<b>' + feats.mean.toFixed(0) + '</b> σ' + feats.std.toFixed(0) +
-                   ' H' + feats.entropy.toFixed(2) + ' ' + feats.ms + 'ms');
-    SAT.log('PRE', 'cloud <em>' + (feats.cloudFrac * 100).toFixed(1) + '%</em> edge ' +
-                   feats.edgeFrac.toFixed(3) + ' br' + (feats.brightFrac * 100).toFixed(1));
+    SAT.log('PRE', packet.width + '×' + packet.height + ' →' + feats.tensorRes + '² int8  ' +
+                   (feats.tensorBytes / 1024).toFixed(1) + ' KB  (' + feats.ms + 'ms)');
+    SAT.log('PRE', 'μ<b>' + feats.mean.toFixed(0) + '</b> σ' + feats.std.toFixed(0) +
+                   ' H' + feats.entropy.toFixed(2) + ' cloud <em>' +
+                   (feats.cloudFrac * 100).toFixed(1) + '%</em> edge ' + feats.edgeFrac.toFixed(3));
     SAT.stage.flash('#n-pre');
     SAT.stage.send('pre', '#3fd8d8');
 
-    /* --- model --- */
-    var out = await SAT.model.infer(feats, f);
+    /* the frame object is built here: it only exists once the tensor does */
+    var f = {
+      id: packet.id, tile: packet.tile, label: packet.label, seq: packet.seq, ts: Date.now(),
+      canvas: packet.canvas, thumb: packet.thumb,
+      bytes0: packet.bytes0, q0: 0.90, quality: 0.90, bytes: packet.bytes0,
+      rel: 0, vis: 0, prio: 0, eff: 0, rank: 0, qfactor: 1, state: 'pending',
+      tensorBytes: feats.tensorBytes, tensorRes: feats.tensorRes
+    };
+    S.frames.push(f);
+
+    /* --- model: features + the INT8 tensor itself --- */
+    var out = await SAT.model.infer(feats, f, {
+      tensor: feats.tensor, tensorBytes: feats.tensorBytes, tensorRes: feats.tensorRes
+    });
     f.rel = util.clamp(out.relevance, 0, 100);
     f.vis = util.clamp(out.visibility, 0, 100);
     f.prio = cfg.wRel * f.rel + (1 - cfg.wRel) * f.vis;
@@ -261,6 +279,10 @@ SAT.app = (function(){
   /* boot                                                              */
   /* ---------------------------------------------------------------- */
   async function boot(){
+    /* ingress parameters come from settings, as the Python constructor does */
+    SAT.preprocess.TENSOR_RES = cfg.tensorRes;
+    SAT.preprocess.PSRAM_SLOTS = cfg.psramSlots;
+
     preloadTiles();
 
     /* wait for the tiles, then probe whether we are allowed to read them */
@@ -284,7 +306,8 @@ SAT.app = (function(){
     }
 
     var d = SAT.model.describe();
-    SAT.log('SYS', 'SAT-IMG-PIPE boot · SRAM 4.20 MB fixed · mass memory ' + cfg.massMB + ' MB', 'warn');
+    SAT.log('SYS', 'SAT-IMG-PIPE boot · PSRAM ' + cfg.psramSlots + ' slots · SRAM 4.20 MB · mass memory ' + cfg.massMB + ' MB', 'warn');
+    SAT.log('SYS', 'ingress → ' + cfg.tensorRes + '² int8 (' + (cfg.tensorRes * cfg.tensorRes * 3 / 1024).toFixed(1) + ' KB), area-resize, clip(x-128)', 'warn');
     SAT.log('SYS', 'connector=<b>' + d.id + '/' + d.version + '</b> · SAT.model.register({...}) to swap');
     SAT.log('SYS', SAT.dataset.tiles.length + ' tiles · sequential, no random generation');
     SAT.log('SYS', 'space hold · s step · b burst · t settings');
@@ -315,17 +338,19 @@ SAT.app = (function(){
   }
 
   function reset(){
-    S.frames = []; S.sram = []; S.sramBytes = 0; S.seq = 0; S.pass = 0;
+    S.frames = []; S.seq = 0; S.pass = 0; S.psramDrops = 0;
     S.memHist = []; S.tpLog = []; S.recent = [];
     S.stats = { captured: 0, pre: 0, scored: 0, committed: 0,
                 compressed: 0, evicted: 0, rejected: 0, stalls: 0 };
+    SAT.preprocess.psram.length = 0;
+    SAT.preprocess.lastTensor = null;
     SAT.log.clear();
     SAT.ui.clearPreview();
     SAT.log('SYS', 'session reset — memory cleared, counters zeroed', 'warn');
   }
 
   function purge(){
-    S.frames = S.frames.filter(function(f){ return f.state === 'sram'; });
+    S.frames = [];
     SAT.log('GC', 'manual purge — store emptied', 'warn');
   }
 

@@ -10,10 +10,10 @@
    visibility — can an observer actually see it?
                 clear-sky fraction, contrast, exposure
 
-   The normalisation constants below were calibrated against the 18 tiles
-   in dataset/ so the scores spread across the full range instead of
-   saturating. If you add tiles with very different statistics, re-check
-   EDGE_NORM and ENTROPY_NORM first.
+   Scores are computed from the feature vector, which preprocess measures on
+   the de-quantised INT8 tensor — i.e. on exactly what a real TinyML model
+   would receive at the SRAM scratchpad. ctx.tensor is available if you want
+   to read the quantised bytes directly instead.
    ===================================================================== */
 window.SAT = window.SAT || {};
 
@@ -22,16 +22,21 @@ SAT.model.stubFeaturescore = (function(){
 
   var clamp = SAT.util.clamp;
 
-  var EDGE_NORM = 0.09;    // edge fraction that counts as maximally structured
+  /* calibrated against the 18 tiles measured on the 160² INT8 tensor with
+     the same 3x3 Sobel kernel preprocess uses: edge fraction runs
+     0.017 (dunes) → 0.667 (Mississippi meanders), median 0.343.
+     Do not calibrate this with a plain first difference — Sobel amplifies
+     gradients roughly 4x and the number will look 4x too small. */
+  var EDGE_NORM = 0.62;    // edge fraction that counts as maximally structured
   var ENTROPY_NORM = 8.0;  // bits
-  var STD_NORM = 70;       // contrast
+  var STD_NORM = 68;       // contrast
 
   return {
     id: 'stub-featurescore',
     version: '0.1.0',
     mode: 'local',
 
-    async infer(f){
+    async infer(f, meta, ctx){
       var e = clamp(f.edgeFrac / EDGE_NORM, 0, 1);
       var h = clamp(f.entropy / ENTROPY_NORM, 0, 1);
       var clear = 1 - f.cloudFrac;

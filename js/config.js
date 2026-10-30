@@ -22,7 +22,7 @@ SAT.util = {
 };
 
 /* ---------- fixed by the design, not by the user ---------- */
-SAT.SRAM_BYTES = 4.2 * SAT.util.MB;   // onboard staging buffer
+SAT.SRAM_BYTES = 4.2 * SAT.util.MB;   // internal SRAM limit (sram_limit_mb=4.2)
 SAT.NATIVE_RES = 1024;                // resolution frame sizes are reported at
 
 /* ---------- user-editable defaults (settings drawer) ---------- */
@@ -36,6 +36,8 @@ SAT.DEFAULTS = {
   tile: 'cycle',     // 'cycle' or a tile id
   url: '',
   interval: 900,     // ms between captures
+  tensorRes: 160,    // SRAM tensor edge, matches target_tensor_res=(160,160)
+  psramSlots: 3,     // PSRAM ring depth, matches max_psram_slots=3
   rejectBelow: 0,    // reject at ingest if relevance < this
   wRel: 0.6,         // priority = wRel*rel + (1-wRel)*vis
   latency: 90,       // simulated inference latency, ms
@@ -54,8 +56,7 @@ SAT.state = {
   seq: 0,
   pass: 0,
   frames: [],          // every frame object created this session
-  sram: [],            // queue waiting to be processed
-  sramBytes: 0,
+  psramDrops: 0,
   stats: { captured: 0, pre: 0, scored: 0, committed: 0,
            compressed: 0, evicted: 0, rejected: 0, stalls: 0 },
   lastFrame: null,

@@ -64,8 +64,12 @@
       <div class="body dev">
         <div class="devhead"><span>NODE · SAT-1</span><span class="pill ok" id="sat-pill">NOMINAL</span></div>
         <div class="meter">
-          <div class="row"><span>SRAM BUFFER</span><span class="num" id="sat-sram">0.00 / 4.20 MB</span></div>
+          <div class="row"><span>PSRAM RING</span><span class="num" id="sat-sram">0 / 3 slots</span></div>
           <div class="bar"><i id="sat-sram-bar"></i></div>
+        </div>
+        <div class="meter">
+          <div class="row"><span>SRAM TENSOR</span><span class="num" id="sat-tensor">0.0 KB / 4.20 MB</span></div>
+          <div class="bar"><i id="sat-tensor-bar"></i></div>
         </div>
         <div class="meter">
           <div class="row"><span>MASS MEMORY</span><span class="num" id="sat-mem">0.00 / 16.00 MB</span></div>
@@ -117,7 +121,7 @@
           <dt>IN STORE</dt><dd id="p-store">0</dd>
           <dt>COMPRESSED</dt><dd id="p-comp">0</dd>
           <dt>EVICTED</dt><dd id="p-evict">0</dd>
-          <dt>SRAM STALLS</dt><dd id="p-stall">0</dd>
+          <dt>RING DROPS</dt><dd id="p-stall">0</dd>
         </dl>
         <div class="spark">
           <div class="row"><span>MEMORY</span><span class="num" id="spark-val">0%</span></div>
@@ -195,8 +199,8 @@
             </g>
             <g font-size="8" letter-spacing="1.6" fill="#3f4a63">
               <text x="146" y="196">RAW FRAMES</text>
-              <text x="248" y="196">4.2 MB BUF</text>
-              <text x="616" y="80">FEATURE VECTOR</text>
+              <text x="248" y="196">3-SLOT RING</text>
+              <text x="616" y="80">INT8 TENSOR</text>
               <text x="846" y="188">SCORE + RANK</text>
               <text x="846" y="366">EVICT / RE-ENCODE</text>
             </g>
@@ -211,8 +215,8 @@
 
             <g id="n-sram" class="node">
               <rect x="56" y="236" width="168" height="76" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="68" y="256" fill="#8fa0bd" font-size="9.5" letter-spacing="2">02 SRAM</text>
-              <text x="68" y="276" fill="#66708a" font-size="8" id="n-sram-1">fixed 4.20 MB</text>
+              <text x="68" y="256" fill="#8fa0bd" font-size="9.5" letter-spacing="2">02 PSRAM</text>
+              <text x="68" y="276" fill="#66708a" font-size="8" id="n-sram-1">3-slot ring</text>
               <text x="68" y="292" fill="#aab6cc" font-size="9" id="n-sram-2">0 queued</text>
               <rect x="68" y="300" width="144" height="4" fill="#080a12" stroke="#161c2c"/>
               <rect x="68" y="300" width="0" height="4" fill="#9d8bff" id="n-sram-bar"/>
@@ -221,8 +225,8 @@
 
             <g id="n-pre" class="node">
               <rect x="396" y="52" width="196" height="72" rx="2" fill="url(#nodeGrad)" stroke="#2b3552"/>
-              <text x="408" y="72" fill="#8fa0bd" font-size="9.5" letter-spacing="2">03 PREPROCESS</text>
-              <text x="408" y="90" fill="#66708a" font-size="8">320²→256² · cloud mask</text>
+              <text x="408" y="72" fill="#8fa0bd" font-size="9.5" letter-spacing="2">03 SRAM TENSOR</text>
+              <text x="408" y="90" fill="#66708a" font-size="8">160² int8 · quantise</text>
               <text x="408" y="106" fill="#aab6cc" font-size="9" id="n-pre-1">idle</text>
               <circle cx="578" cy="64" r="3" fill="#3fd8d8" id="led-pre"/>
             </g>
@@ -343,8 +347,15 @@
     <section class="panel">
       <span class="ttl"><b>FRAME</b><span class="sep">/</span>last processed</span>
       <div class="body" style="padding:11px 10px 9px">
-        <div class="preview-box">
-          <canvas id="preview" width="320" height="320"></canvas>
+        <div class="preview-box dual">
+          <div class="pcol">
+            <canvas id="preview" width="320" height="320"></canvas>
+            <span class="pcap" id="cap-psram">PSRAM · —</span>
+          </div>
+          <div class="pcol">
+            <canvas id="tensorview" width="160" height="160"></canvas>
+            <span class="pcap" id="cap-sram">SRAM · —</span>
+          </div>
           <span class="preview-badge" id="prev-badge">NO FRAME</span>
         </div>
         <div class="hist" id="hist"></div>
@@ -470,6 +481,14 @@
           <label>Reject below relevance <small>0 = keep everything</small></label>
           <input type="number" id="cfg-reject" value="0" min="0" max="100" step="1">
         </div>
+        <div class="field">
+          <label>Tensor resolution <small>SRAM scratchpad edge, px</small></label>
+          <input type="number" id="cfg-tres" value="160" min="64" max="2048" step="16">
+        </div>
+        <div class="field">
+          <label>PSRAM ring slots <small>raw frames staged</small></label>
+          <input type="number" id="cfg-slots" value="3" min="1" max="8" step="1">
+        </div>
       </div>
     </div>
 
@@ -508,6 +527,11 @@
           Frame bytes are a real JPEG encode of the tile. Re-encode sizes on compression use the encoder
           model <code>b = b₀·(q/q₀)^1.9</code>. Effective rank <code>eff = priority · (0.5 + 0.5·q/q₀)</code>,
           so compression visibly demotes a frame.
+          <br><br>
+          Ingress follows <code>preprocess/reference/Cubesatsim_dataintake.py</code>:
+          raw frame → 3-slot PSRAM ring → area-average resize → INT8
+          (<code>clip(x-128, -128, 127)</code>) → 4.2 MB SRAM guard → features
+          measured on the de-quantised tensor.
           <br><br>
           Tiles are real public-domain satellite imagery (NASA / USGS / NOAA / ESA via Wikimedia Commons),
           cycled in a fixed order — no random generation. Each pass applies a small deterministic crop

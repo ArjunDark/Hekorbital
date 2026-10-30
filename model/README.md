@@ -18,7 +18,7 @@ model/
   id: 'my-model',
   version: '1.0.0',
   mode: 'local',
-  async infer(features, meta) {
+  async infer(features, meta, ctx) {
     return {
       relevance: 0..100,     // is there something worth keeping in this frame
       visibility: 0..100,    // can it actually be seen
@@ -30,6 +30,19 @@ model/
 
 `features` is whatever `SAT.preprocess.run()` returned. `meta` carries
 `{ id, tile, label, seq }` for the frame being scored.
+
+`ctx` carries the quantised input itself:
+
+```js
+{ tensor: Int8Array,   // 160²·3 bytes, values −128…127
+  tensorBytes: 76800,
+  tensorRes: 160 }
+```
+
+That is the same buffer the SRAM scratchpad hands a TinyML runtime, so a real model
+can consume it directly rather than re-deriving it from the statistics. The bundled
+placeholder ignores `ctx`; the endpoint payload only carries its shape
+(`{ res, bytes, dtype }`), never the bytes themselves.
 
 `terms`, if present, is used only for the verbose trace. Return three keys — `e`,
 `h`, `clear` — plus two strings `rel` and `vis` showing the arithmetic. Omit it and
@@ -87,9 +100,15 @@ relevance  = 100 · (0.45·edges + 0.25·entropy + 0.30·clear)
 visibility = 100 · (0.50·clear^1.4 + 0.30·contrast + 0.20·exposure)
 ```
 
+Its inputs are measured on the de-quantised INT8 tensor at `TENSOR_RES`, not on a
+separate analysis grid — see `preprocess/README.md`.
+
 Its normalisation constants (`EDGE_NORM`, `ENTROPY_NORM`, `STD_NORM`) were calibrated
-against the 18 tiles in `dataset/` so the scores spread across the range rather than
-saturating near 100. If you add tiles with very different statistics, re-check those
+against the 18 tiles measured on the 160² INT8 tensor, so the scores spread across the
+range rather than saturating near 100. `EDGE_NORM = 0.62` sits just below the highest observed
+edge fraction (0.667, Mississippi meanders); the median tile lands near 0.343. Measure
+it with the same 3×3 Sobel kernel the preprocessor uses — a plain first difference
+reads about 4× smaller and will make every tile look maximally structured. If you add tiles with very different statistics, re-check those
 constants first — otherwise every new tile will score the same and the ranking stops
 telling you anything.
 

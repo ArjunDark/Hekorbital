@@ -45,21 +45,6 @@ SAT.storage = (function(){
     return S.frames.filter(function(f){ return f.state === 'live' || f.state === 'compressed'; });
   }
 
-  /* ---- SRAM ---- */
-  function pushSram(frame){
-    if (S.sramBytes + frame.bytes0 > SAT.SRAM_BYTES) return false;
-    S.sram.push(frame);
-    S.sramBytes += frame.bytes0;
-    S.frames.push(frame);
-    return true;
-  }
-
-  function shiftSram(){
-    var f = S.sram.shift();
-    if (f) S.sramBytes = Math.max(0, S.sramBytes - f.bytes0);
-    return f;
-  }
-
   /* ---- recent-action list shown in the left column ---- */
   function pushRecent(kind, txt){
     S.recent.unshift({ kind: kind, txt: txt });
@@ -175,8 +160,6 @@ SAT.storage = (function(){
     thumbURL: thumbURL,
     totalBytes: totalBytes,
     stored: stored,
-    pushSram: pushSram,
-    shiftSram: shiftSram,
     pushRecent: pushRecent,
     commit: commit,
     runGC: runGC,

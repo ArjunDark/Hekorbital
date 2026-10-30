@@ -6,7 +6,11 @@
    does not know what a connector does internally.
 
    A connector is:
-     { id, version, mode, async infer(features, meta) -> {relevance, visibility, terms?} }
+     { id, version, mode, async infer(features, meta, ctx) -> {relevance, visibility, terms?} }
+
+   ctx carries the INT8 tensor itself — { tensor: Int8Array, tensorBytes, tensorRes } —
+   so a real TinyML model can score the quantised input directly, exactly what the
+   SRAM scratchpad hands it. Connectors that only need the statistics can ignore it.
    both scores in 0..100. `terms` is optional and only used to print the
    arithmetic in the trace.
 
@@ -59,15 +63,13 @@ SAT.model = (function(){
    * Run one inference. Honours the endpoint setting, then falls back to
    * the local connector on any transport error.
    */
-  api.infer = async function(features, meta){
+  api.infer = async function(features, meta, ctx){
     var t0 = util.now(), out;
 
     if (SAT.cfg.endpoint){
       try {
-        var res = await fetch(SAT.cfg.endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ features: {
+        var payload = {
+          features: {
             mean: features.mean,
             std: features.std,
             entropy: features.entropy,
@@ -75,7 +77,13 @@ SAT.model = (function(){
             edgeFrac: features.edgeFrac,
             brightFrac: features.brightFrac,
             tile: meta.tile
-          }})
+          },
+          tensor: ctx ? { res: ctx.tensorRes, bytes: ctx.tensorBytes, dtype: 'int8' } : null
+        };
+        var res = await fetch(SAT.cfg.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var j = await res.json();
@@ -83,10 +91,10 @@ SAT.model = (function(){
         if (!isFinite(out.relevance) || !isFinite(out.visibility)) throw new Error('bad payload');
       } catch (err){
         if (SAT.log) SAT.log('ERR', 'endpoint failed (' + util.esc(err.message) + ') — local fallback', 'err');
-        out = await api.active.infer(features, meta);
+        out = await api.active.infer(features, meta, ctx);
       }
     } else {
-      out = await api.active.infer(features, meta);
+      out = await api.active.infer(features, meta, ctx);
     }
 
     if (SAT.cfg.latency > 0) await util.sleep(SAT.cfg.latency * 0.35);
