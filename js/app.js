@@ -23,10 +23,7 @@ SAT.app = (function(){
   function preloadTiles(){
     imgCache = SAT.dataset.tiles.map(function(t){
       var im = new Image();
-      /* single-file builds inline the bytes as a data URL; the multi-file
-         tree loads from dataset/. data URLs also avoid the file:// canvas
-         taint, which is why the standalone preview works without a server. */
-      im.src = t.data || (SAT.dataset.root + t.file);
+      im.src = SAT.dataset.root + t.file;
       return im;
     });
   }
@@ -147,14 +144,14 @@ SAT.app = (function(){
                       ' ' + (packet.rawBytes / MB).toFixed(2) + ' MB → PSRAM ' + slots + '/' +
                       SAT.preprocess.PSRAM_SLOTS);
     SAT.stage.flash('#n-ingest');
-    SAT.stage.send('ingest', '#7fb99e');
+    SAT.stage.send('ingest', '#5aa9ff');
   }
 
   async function processHead(){
     var packet = SAT.preprocess.pop();
     if (!packet) return;
     SAT.stage.flash('#n-sram');
-    SAT.stage.send('sram', '#b9f2d2');
+    SAT.stage.send('sram', '#9d8bff');
 
     /* --- SRAM scratchpad: area-resize, INT8 quantise, limit check --- */
     var feats;
@@ -179,7 +176,7 @@ SAT.app = (function(){
                    ' H' + feats.entropy.toFixed(2) + ' cloud <em>' +
                    (feats.cloudFrac * 100).toFixed(1) + '%</em> edge ' + feats.edgeFrac.toFixed(3));
     SAT.stage.flash('#n-pre');
-    SAT.stage.send('pre', '#b9f2d2');
+    SAT.stage.send('pre', '#3fd8d8');
 
     /* the frame object is built here: it only exists once the tensor does */
     var f = {
@@ -212,7 +209,7 @@ SAT.app = (function(){
                      (1 - cfg.wRel).toFixed(1) + '·' + f.vis.toFixed(0) + '=<b>' +
                      f.prio.toFixed(1) + '</b> ' + out.ms + 'ms');
     SAT.stage.flash('#n-model');
-    SAT.stage.send('model', '#d9c07f');
+    SAT.stage.send('model', '#ffb454');
     util.$('#n-model-2').textContent = 'rel ' + f.rel.toFixed(0) + ' / vis ' + f.vis.toFixed(0);
 
     /* --- gate --- */
@@ -329,7 +326,7 @@ SAT.app = (function(){
   /* ---------------------------------------------------------------- */
   var fitCache = '';
   function fitStage(){
-    var wrap = util.$('.view');
+    var wrap = util.$('.stage-wrap');
     var fit = util.$('#stage-fit');
     if (!wrap || !fit) return;
     var w = wrap.clientWidth, h = wrap.clientHeight;

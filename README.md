@@ -47,18 +47,11 @@ silently.
 
 ## Interface
 
-Presented as a diegetic terminal: phosphor mint on black, hairline rules, corner
-brackets on framed images, dotted leaders between label and value, `›` prompts on
-log lines and list items, hatched dividers and a hatched progress bar, vertical
-edge captions. Frames are shown as phosphor duotone (luminance preserved, hue and
-saturation forced to the terminal colour) so the imagery reads like the rest of the
-display.
-
-The mission header carries MET / UTC / mode / counters; the spacecraft view holds
-the payload chain across its top, the spacecraft above a rotating Earth; the
-terminal column carries the scan log, the raw/tensor frame pair, scan progress and
-the readout table; the frame index runs along the bottom. Nothing scrolls — row
-counts and log depth are computed from the space available.
+Laid out as a ground-segment console rather than a dashboard: a mission header
+(MET / UTC / mode / counters), spacecraft-bus and ground-segment telemetry on the
+left, the payload chain and spacecraft view in the centre, frame/tensor view and
+event log on the right, and the frame index along the bottom. Nothing scrolls —
+row counts and log depth are computed from the space available.
 
 The centre view draws the spacecraft over a rotating orthographic Earth built from
 real Natural Earth coastlines (2.4°/s, one revolution per 150 s). The ground-station
