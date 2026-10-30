@@ -267,7 +267,7 @@ table.tbl tr.flash-out{animation:ro .5s ease-out}
 .empty{padding:10px;color:var(--ink-faint);font-size:9px}
 
 /* sparkline + recent */
-.spark{margin-top:4px}
+.spark{margin-top:4px;display:none}
 .spark .r{display:flex;justify-content:space-between;font-size:8px;color:var(--ink-faint);letter-spacing:.1em;margin-bottom:2px}
 .spark svg{display:block;width:100%;height:24px;border:1px solid var(--line);background:var(--inset)}
 .recent{margin-top:5px;border-top:1px solid var(--line-2);padding-top:4px;overflow:hidden;display:none}

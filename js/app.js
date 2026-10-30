@@ -23,7 +23,10 @@ SAT.app = (function(){
   function preloadTiles(){
     imgCache = SAT.dataset.tiles.map(function(t){
       var im = new Image();
-      im.src = SAT.dataset.root + t.file;
+      /* single-file builds inline the bytes as a data URL; the multi-file
+         tree loads from dataset/. data URLs also avoid the file:// canvas
+         taint, which is why the standalone preview works without a server. */
+      im.src = t.data || (SAT.dataset.root + t.file);
       return im;
     });
   }
