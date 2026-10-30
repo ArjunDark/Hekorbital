@@ -55,7 +55,7 @@ SAT.stage = (function(){
       var p = paths[id];
       if (!p) return;
       if (t - p.active > 600){
-        p.el.setAttribute('stroke', '#2c3542');
+        p.el.setAttribute('stroke', '#2f5344');
         p.el.setAttribute('stroke-opacity', '1');
       }
     });
@@ -66,17 +66,17 @@ SAT.stage = (function(){
     if (!g) return;
     var rect = g.querySelector('rect');
     if (!rect) return;
-    rect.setAttribute('stroke', '#4d8fd6');
-    setTimeout(function(){ rect.setAttribute('stroke', '#2c3542'); }, 240);
+    rect.setAttribute('stroke', '#7fb99e');
+    setTimeout(function(){ rect.setAttribute('stroke', '#1b3a2e'); }, 240);
   }
 
   function led(sel, cls){
     var el = util.$(sel);
     if (!el) return;
     el.setAttribute('fill',
-      cls === 'on'   ? '#4f9e6a' :
-      cls === 'busy' ? '#c2922f' :
-      cls === 'crit' ? '#c25a5a' : '#3a4450');
+      cls === 'on'   ? '#7fb99e' :
+      cls === 'busy' ? '#d9c07f' :
+      cls === 'crit' ? '#e08d8d' : '#2f5344');
   }
 
   return { init: init, send: send, tick: tick, flash: flash, led: led };

@@ -144,14 +144,14 @@ SAT.app = (function(){
                       ' ' + (packet.rawBytes / MB).toFixed(2) + ' MB → PSRAM ' + slots + '/' +
                       SAT.preprocess.PSRAM_SLOTS);
     SAT.stage.flash('#n-ingest');
-    SAT.stage.send('ingest', '#5aa9ff');
+    SAT.stage.send('ingest', '#7fb99e');
   }
 
   async function processHead(){
     var packet = SAT.preprocess.pop();
     if (!packet) return;
     SAT.stage.flash('#n-sram');
-    SAT.stage.send('sram', '#9d8bff');
+    SAT.stage.send('sram', '#b9f2d2');
 
     /* --- SRAM scratchpad: area-resize, INT8 quantise, limit check --- */
     var feats;
@@ -176,7 +176,7 @@ SAT.app = (function(){
                    ' H' + feats.entropy.toFixed(2) + ' cloud <em>' +
                    (feats.cloudFrac * 100).toFixed(1) + '%</em> edge ' + feats.edgeFrac.toFixed(3));
     SAT.stage.flash('#n-pre');
-    SAT.stage.send('pre', '#3fd8d8');
+    SAT.stage.send('pre', '#b9f2d2');
 
     /* the frame object is built here: it only exists once the tensor does */
     var f = {
@@ -209,7 +209,7 @@ SAT.app = (function(){
                      (1 - cfg.wRel).toFixed(1) + '·' + f.vis.toFixed(0) + '=<b>' +
                      f.prio.toFixed(1) + '</b> ' + out.ms + 'ms');
     SAT.stage.flash('#n-model');
-    SAT.stage.send('model', '#ffb454');
+    SAT.stage.send('model', '#d9c07f');
     util.$('#n-model-2').textContent = 'rel ' + f.rel.toFixed(0) + ' / vis ' + f.vis.toFixed(0);
 
     /* --- gate --- */
@@ -326,7 +326,7 @@ SAT.app = (function(){
   /* ---------------------------------------------------------------- */
   var fitCache = '';
   function fitStage(){
-    var wrap = util.$('.stage-wrap');
+    var wrap = util.$('.view');
     var fit = util.$('#stage-fit');
     if (!wrap || !fit) return;
     var w = wrap.clientWidth, h = wrap.clientHeight;

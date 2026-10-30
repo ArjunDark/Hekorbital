@@ -73,7 +73,7 @@ SAT.earth = (function(){
   }
 
   function drawGraticule(lam0, cx, cy, R){
-    ctx.strokeStyle = 'rgba(150,180,210,0.10)';
+    ctx.strokeStyle = 'rgba(150,220,185,0.10)';
     ctx.lineWidth = 0.6;
     var step = 30, k, a, b, started, p;
 
@@ -112,9 +112,9 @@ SAT.earth = (function(){
 
     /* ocean sphere with limb shading */
     var g = ctx.createRadialGradient(cx - R * 0.28, cy - R * 0.34, R * 0.1, cx, cy, R * 1.02);
-    g.addColorStop(0, '#17334c');
-    g.addColorStop(0.62, '#0f2234');
-    g.addColorStop(1, '#08111b');
+    g.addColorStop(0, '#0c1f16');
+    g.addColorStop(0.62, '#071310');
+    g.addColorStop(1, '#030806');
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.fillStyle = g;
@@ -125,14 +125,14 @@ SAT.earth = (function(){
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.clip();
-    if (SAT.earthData) drawRings(SAT.earthData, lam0, cx, cy, R, '#2c4536', 'rgba(120,160,140,0.18)');
+    if (SAT.earthData) drawRings(SAT.earthData, lam0, cx, cy, R, '#153526', 'rgba(140,220,180,0.30)');
     drawGraticule(lam0, cx, cy, R);
     ctx.restore();
 
     /* limb */
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(120,160,200,0.30)';
+    ctx.strokeStyle = 'rgba(150,220,185,0.28)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -143,7 +143,7 @@ SAT.earth = (function(){
       var anchorY = H * 0.50;
       ctx.save();
       ctx.setLineDash([4, 5]);
-      ctx.strokeStyle = 'rgba(122,164,214,0.42)';
+      ctx.strokeStyle = 'rgba(185,242,210,0.40)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(gs.x, gs.y);
@@ -154,23 +154,23 @@ SAT.earth = (function(){
       /* site marker */
       ctx.beginPath();
       ctx.arc(gs.x, gs.y, 3.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#4d8fd6';
+      ctx.fillStyle = '#b9f2d2';
       ctx.fill();
       ctx.beginPath();
       ctx.arc(gs.x, gs.y, 7, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(77,143,214,0.55)';
+      ctx.strokeStyle = 'rgba(185,242,210,0.45)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.font = '9px "IBM Plex Mono", monospace';
-      ctx.fillStyle = 'rgba(160,190,220,0.85)';
+      ctx.fillStyle = 'rgba(185,242,210,0.85)';
       ctx.fillText('GS-1', gs.x + 10, gs.y - 6);
       return { visible: true, x: gs.x, y: gs.y };
     }
 
     ctx.font = '9px "IBM Plex Mono", monospace';
-    ctx.fillStyle = 'rgba(120,135,155,0.55)';
-    ctx.fillText('GS-1 BELOW HORIZON', 14, H - 34);
+    ctx.fillStyle = 'rgba(92,143,119,0.7)';
+    ctx.fillText('GS-1 BELOW HORIZON', 16, H - 26);
     return { visible: false };
   }
 

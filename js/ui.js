@@ -20,6 +20,17 @@ SAT.ui = (function(){
   /* ---------------------------------------------------------------- */
   /* frame preview                                                     */
   /* ---------------------------------------------------------------- */
+  /* phosphor duotone: keep luminance, force hue/saturation to mint */
+  function tint(ctx2, cv){
+    try {
+      ctx2.save();
+      ctx2.globalCompositeOperation = 'color';
+      ctx2.fillStyle = '#b9f2d2';
+      ctx2.fillRect(0, 0, cv.width, cv.height);
+      ctx2.restore();
+    } catch (e){ /* older engines: leave the frame in true colour */ }
+  }
+
   function drawMask(mask, res){
     var overlay = SAT.preprocess.maskOverlay(mask, res);
     pctx.globalAlpha = 0.85;
@@ -34,6 +45,7 @@ SAT.ui = (function(){
     /* left: the frame as it sits in PSRAM */
     pctx.clearRect(0, 0, previewCv.width, previewCv.height);
     pctx.drawImage(f.canvas, 0, 0, previewCv.width, previewCv.height);
+    tint(pctx, previewCv);
     if (S.maskOn && feats && feats.mask) drawMask(feats.mask, feats.maskRes);
 
     /* right: the INT8 tensor as it sits in SRAM, nearest-neighbour so the
@@ -43,6 +55,7 @@ SAT.ui = (function(){
     if (feats && feats.tensor){
       var tc = SAT.preprocess.tensorCanvas(feats.tensor, feats.tensorRes);
       tctx.drawImage(tc, 0, 0, tensorCv.width, tensorCv.height);
+      tint(tctx, tensorCv);
     }
 
     $('#prev-badge').textContent = f.id;
@@ -75,6 +88,7 @@ SAT.ui = (function(){
     if (!S.lastFrame) return;
     pctx.clearRect(0, 0, previewCv.width, previewCv.height);
     pctx.drawImage(S.lastFrame.canvas, 0, 0, previewCv.width, previewCv.height);
+    tint(pctx, previewCv);
     if (S.maskOn && S.lastMask) drawMask(S.lastMask, S.lastFeats ? S.lastFeats.maskRes : undefined);
   }
 
@@ -99,122 +113,116 @@ SAT.ui = (function(){
   function renderDevices(){
     var pp = SAT.preprocess;
     var slots = pp.psram.length, slotsMax = pp.PSRAM_SLOTS;
-    var psramPct = (slots / slotsMax) * 100;
     var tBytes = pp.lastTensor ? pp.lastTensor.bytes : 0;
-    var tensorPct = (tBytes / pp.SRAM_LIMIT) * 100;
-
     var cap = cfg.massMB * MB;
     var used = SAT.storage.totalBytes();
     var memPct = (used / cap) * 100;
+    var stored = SAT.storage.stored();
 
-    $('#sat-sram').textContent = slots + ' / ' + slotsMax + ' slots · ' +
-                                 (pp.psramBytes() / MB).toFixed(2) + ' MB';
-    var sb = $('#sat-sram-bar');
-    sb.style.width = util.clamp(psramPct, 0, 100).toFixed(1) + '%';
-    sb.className = psramPct >= 100 ? 'red' : psramPct > 66 ? 'amber' : '';
+    function set(sel, txt){ var e = $(sel); if (e) e.textContent = txt; }
 
-    $('#sat-tensor').textContent = (tBytes / 1024).toFixed(1) + ' KB / 4.20 MB';
-    var tb = $('#sat-tensor-bar');
-    tb.style.width = Math.max(0.6, util.clamp(tensorPct, 0, 100)).toFixed(1) + '%';
-    tb.className = tensorPct > 85 ? 'red' : '';
-
-    $('#sat-mem').textContent = (used / MB).toFixed(2) + ' / ' + cfg.massMB.toFixed(2) + ' MB';
-    var mb = $('#sat-mem-bar');
-    mb.style.width = util.clamp(memPct, 0, 100).toFixed(1) + '%';
-    mb.className = memPct > cfg.highWater ? 'red' : memPct > 55 ? 'amber' : '';
-    $('#sat-wm').style.left = cfg.highWater + '%';
+    /* --- readout column --- */
+    set('#sat-sram', slots + '/' + slotsMax + ' · ' + (pp.psramBytes() / MB).toFixed(2) + 'M');
+    set('#sat-tensor', (tBytes / 1024).toFixed(1) + ' KB');
+    set('#sat-mem', (used / MB).toFixed(2) + '/' + cfg.massMB.toFixed(2));
 
     var load = Math.round(util.clamp(S.loadEMA * 100, 0, 100));
-    var loadEl = $('#sat-load');
-    if (loadEl) loadEl.textContent = load + '%';
-    var loadBar = $('#sat-load-bar');
-    if (loadBar) loadBar.style.width = load + '%';
-
-    $('#sat-pwr').textContent = (6.4 + (S.busy ? 1.8 : 0) + load * 0.02).toFixed(1) + ' W';
+    set('#sat-pwr', (6.4 + (S.busy ? 1.8 : 0) + load * 0.02).toFixed(1) + ' W');
     S.temp += ((24.1 + load * 0.055 + (S.busy ? 0.6 : 0)) - S.temp) * 0.02;
-    $('#sat-temp').textContent = S.temp.toFixed(1) + ' °C';
-    $('#sat-in').textContent = S.stats.captured;
-    $('#sat-commit').textContent = S.stats.committed;
-    $('#sat-rej').textContent = S.stats.rejected;
+    set('#sat-temp', S.temp.toFixed(1) + ' °C');
+    set('#sat-in', S.stats.captured);
+    set('#sat-commit', S.stats.committed);
+    set('#sat-rej', S.stats.rejected);
+    set('#p-cap', S.stats.captured);
+    set('#p-pre', S.stats.pre);
+    set('#p-score', S.stats.scored);
+    set('#p-store', stored.length);
+    set('#p-comp', S.stats.compressed);
+    set('#p-evict', S.stats.evicted);
+    set('#p-stall', S.psramDrops);
 
-    SAT.stage.led('#led-buf', slots >= slotsMax ? 'crit' : slots ? 'busy' : 'off');
-    SAT.stage.led('#led-mem', memPct > cfg.highWater ? 'crit' : used > 0 ? 'on' : 'off');
-    SAT.stage.led('#led-gc', (S.stats.compressed || S.stats.evicted) ? 'on' : 'off');
+    /* --- scan progress = mass memory fill --- */
+    var bar = $('#scan-bar');
+    if (bar){
+      bar.style.width = util.clamp(memPct, 0, 100).toFixed(1) + '%';
+      bar.className = memPct > cfg.highWater ? 'crit' : memPct > 55 ? 'warn' : '';
+    }
+    set('#scan-pct', memPct.toFixed(0) + '%');
 
-    $('#p-cap').textContent = S.stats.captured;
-    $('#p-pre').textContent = S.stats.pre;
-    $('#p-score').textContent = S.stats.scored;
-    $('#p-store').textContent = SAT.storage.stored().length;
-    $('#p-comp').textContent = S.stats.compressed;
-    $('#p-evict').textContent = S.stats.evicted;
-    $('#p-stall').textContent = S.psramDrops;
+    var status = S.fatal ? 'FAULT · PIXELS UNAVAILABLE'
+      : !S.running ? 'PIPELINE HELD'
+      : (S.stats.rejected > 0 && S.stats.committed === 0) ? 'SCORING DEGRADED'
+      : (memPct > cfg.highWater) ? 'STORE ABOVE WATERMARK · RECLAIMING'
+      : 'PIPELINE NOMINAL';
+    var stEl = $('#pipe-status');
+    if (stEl){
+      stEl.textContent = status;
+      stEl.style.color = S.fatal ? 'var(--red)'
+        : (memPct > cfg.highWater || S.stats.rejected > 0) ? 'var(--amber)' : 'var(--ink)';
+    }
 
-    /* dock memory bar */
-    $('#dock-mem-lbl').innerHTML = '<b>' + (used / MB).toFixed(2) + '</b> / ' + cfg.massMB.toFixed(2) + ' MB';
+    /* --- dock memory bar --- */
+    var dl = $('#dock-mem-lbl');
+    if (dl) dl.innerHTML = '<b>' + (used / MB).toFixed(2) + '</b> / ' + cfg.massMB.toFixed(2) + ' MB';
     var db = $('#dock-mem-bar');
-    db.style.width = util.clamp(memPct, 0, 100).toFixed(1) + '%';
-    db.className = memPct > cfg.highWater ? 'red' : memPct > 55 ? 'amber' : '';
-    $('#dock-wm').style.left = cfg.highWater + '%';
-    $('#dock-mem-pct').textContent = memPct.toFixed(0) + '%';
+    if (db){
+      db.style.width = util.clamp(memPct, 0, 100).toFixed(1) + '%';
+      db.className = memPct > cfg.highWater ? 'red' : memPct > 55 ? 'amber' : '';
+    }
+    var wm = $('#dock-wm');
+    if (wm) wm.style.left = cfg.highWater + '%';
+    set('#dock-mem-pct', memPct.toFixed(0) + '%');
 
-    /* stage node readouts */
-    $('#n-ingest-1').textContent = cfg.source === 'dataset'
-      ? (cfg.tile === 'cycle' ? 'embedded · cycling' : cfg.tile) : cfg.source;
-    $('#n-ingest-2').textContent = S.stats.captured + ' frames acquired';
-    $('#n-sram-2').textContent = slots + '/' + slotsMax + ' slots · ' +
-                                  (pp.psramBytes() / MB).toFixed(2) + ' MB';
+    /* --- stage nodes --- */
+    set('#n-ingest-1', cfg.source === 'dataset'
+      ? (cfg.tile === 'cycle' ? 'cycling' : cfg.tile) : cfg.source);
+    set('#n-ingest-2', S.stats.captured + ' acquired');
+    set('#n-sram-2', slots + '/' + slotsMax + ' · ' + (pp.psramBytes() / MB).toFixed(2) + 'M');
     var nsb = $('#n-sram-bar');
-    nsb.setAttribute('width', (144 * util.clamp(psramPct, 0, 100) / 100).toFixed(1));
-    nsb.setAttribute('fill', psramPct >= 100 ? '#ff4d8d' : psramPct > 66 ? '#ffb454' : '#9d8bff');
-    $('#n-pre-1').textContent = (tBytes / 1024).toFixed(1) + ' KB int8 · ' + S.stats.pre + ' run';
+    if (nsb){
+      nsb.setAttribute('width', (126 * util.clamp((slots / slotsMax) * 100, 0, 100) / 100).toFixed(1));
+      nsb.setAttribute('fill', slots >= slotsMax ? '#e08d8d' : '#7fb99e');
+    }
+    set('#n-pre-1', (tBytes / 1024).toFixed(1) + ' KB · ' + S.stats.pre + ' runs');
 
     var d = SAT.model.describe();
-    $('#n-model-1').textContent = d.id;
-    $('#n-model-3').textContent = 'connector · ' + d.mode;
+    set('#n-model-1', d.id);
+    set('#n-model-3', d.mode);
 
-    $('#n-mem-1').textContent = (used / MB).toFixed(2) + ' / ' + cfg.massMB.toFixed(2) + ' MB';
+    set('#n-mem-1', (used / MB).toFixed(2) + ' / ' + cfg.massMB.toFixed(2) + ' MB');
     var nmb = $('#n-mem-bar');
-    nmb.setAttribute('width', (190 * util.clamp(memPct, 0, 100) / 100).toFixed(1));
-    nmb.setAttribute('fill', memPct > cfg.highWater ? '#ff4d8d' : memPct > 55 ? '#ffb454' : '#7fdc86');
-    var st = SAT.storage.stored();
-    $('#n-mem-2').textContent = st.length + ' frames';
-    var best = st.slice().sort(function(a, b){ return b.eff - a.eff; })[0];
-    $('#n-mem-3').textContent = best ? ('top eff ' + best.eff.toFixed(1) + ' · ' + best.tile) : 'top score —';
-    $('#n-gc-1').textContent = 'watermark ' + cfg.highWater + '% → ' + cfg.targetWater + '%';
-    $('#n-gc-2').textContent = S.stats.compressed + ' comp · ' + S.stats.evicted + ' evict';
+    if (nmb){
+      nmb.setAttribute('width', (186 * util.clamp(memPct, 0, 100) / 100).toFixed(1));
+      nmb.setAttribute('fill', memPct > cfg.highWater ? '#e08d8d' : memPct > 55 ? '#d9c07f' : '#7fb99e');
+    }
+    set('#n-mem-2', stored.length + ' frames');
+    var best = stored.slice().sort(function(a, b){ return b.eff - a.eff; })[0];
+    set('#n-mem-3', best ? ('top eff ' + best.eff.toFixed(1) + ' · ' + best.tile) : 'top eff —');
+    set('#n-gc-1', 'watermark ' + cfg.highWater + '% → ' + cfg.targetWater + '%');
+    set('#n-gc-2', S.stats.compressed + ' comp · ' + S.stats.evicted + ' evict');
 
-    /* topbar */
+    /* --- header --- */
     var tNow = Date.now();
     S.tpLog = S.tpLog.filter(function(x){ return tNow - x.t < 5000; });
     var bps = S.tpLog.reduce(function(a, x){ return a + x.b; }, 0) / 5;
-    $('#h-tp').textContent = bps >= MB ? (bps / MB).toFixed(1) + ' MB/s' : (bps / KB).toFixed(0) + ' KB/s';
-    $('#h-frames').textContent = S.stats.captured;
-    $('#h-avg').textContent = st.length
-      ? (st.reduce(function(s, f){ return s + f.eff; }, 0) / st.length).toFixed(1) : '—';
-    $('#h-gc').textContent = S.stats.evicted + ' / ' + S.stats.compressed;
-    var now = new Date();
-    var utc = String(now.getUTCHours()).padStart(2,'0') + ':' +
-              String(now.getUTCMinutes()).padStart(2,'0') + ':' +
-              String(now.getUTCSeconds()).padStart(2,'0');
-    var utcEl = $('#h-utc');
-    if (utcEl) utcEl.textContent = utc + 'Z';
+    set('#h-tp', bps >= MB ? (bps / MB).toFixed(1) + ' MB/s' : (bps / KB).toFixed(0) + ' KB/s');
+    set('#h-frames', S.stats.captured);
+    set('#h-avg', stored.length
+      ? (stored.reduce(function(s, f){ return s + f.eff; }, 0) / stored.length).toFixed(1) : '—');
+    set('#h-gc', S.stats.evicted + ' / ' + S.stats.compressed);
 
-    var pill = $('#sat-pill');
-    if (pill){
-      pill.textContent = S.fatal ? 'FAULT'
-        : (S.stats.rejected && !S.stats.committed) ? 'DEGRADED'
-        : 'NOMINAL';
-      pill.style.color = S.fatal ? 'var(--red)'
-        : (S.stats.rejected && !S.stats.committed) ? 'var(--amber)' : 'var(--green)';
-    }
+    var nowD = new Date();
+    var utc = String(nowD.getUTCHours()).padStart(2, '0') + ':' +
+              String(nowD.getUTCMinutes()).padStart(2, '0') + ':' +
+              String(nowD.getUTCSeconds()).padStart(2, '0');
+    set('#h-utc', utc + 'Z');
 
     var el = Date.now() - S.clockStart;
-    $('#h-clock').textContent =
-      String(Math.floor(el / 3600000)).padStart(2, '0') + ':' +
-      String(Math.floor(el / 60000) % 60).padStart(2, '0') + ':' +
-      String(Math.floor(el / 1000) % 60).padStart(2, '0');
+    set('#h-clock', String(Math.floor(el / 3600000)).padStart(2, '0') + ':' +
+                    String(Math.floor(el / 60000) % 60).padStart(2, '0') + ':' +
+                    String(Math.floor(el / 1000) % 60).padStart(2, '0'));
 
-    /* memory sparkline */
+    /* --- sparkline --- */
     S.memHist.push(util.clamp(memPct, 0, 100));
     if (S.memHist.length > 120) S.memHist.shift();
     var sl = $('#spark-line');
@@ -223,14 +231,14 @@ SAT.ui = (function(){
       sl.setAttribute('points', h.map(function(v, i){
         return ((i / (h.length - 1)) * 100).toFixed(2) + ',' + (26 - (v / 100) * 24).toFixed(2);
       }).join(' '));
-      sl.setAttribute('stroke', memPct > cfg.highWater ? '#ff5f7a' : '#3fd8d8');
+      sl.setAttribute('stroke', memPct > cfg.highWater ? '#e08d8d' : '#7fb99e');
       var y = (26 - (cfg.highWater / 100) * 24).toFixed(1);
-      $('#spark-wm').setAttribute('y1', y);
-      $('#spark-wm').setAttribute('y2', y);
+      var wml = $('#spark-wm');
+      if (wml){ wml.setAttribute('y1', y); wml.setAttribute('y2', y); }
     }
-    $('#spark-val').textContent = memPct.toFixed(0) + '%';
+    set('#spark-val', memPct.toFixed(0) + '%');
 
-    /* recent storage actions */
+    /* --- recent storage actions --- */
     var rl = $('#recent-list');
     if (rl){
       rl.innerHTML = S.recent.length
@@ -238,11 +246,10 @@ SAT.ui = (function(){
             return '<div><span class="a ' + r.kind + '">' + r.kind.toUpperCase() + '</span><span>' +
                    util.esc(r.txt) + '</span></div>';
           }).join('')
-        : '<span style="color:#454e63">—</span>';
+        : '<span style="color:#2f5344">—</span>';
     }
 
-    /* connector label */
-    $('#connector-info').textContent = d.id + '/' + d.version + ' · ' + d.mode;
+    set('#connector-info', d.id + '/' + d.version + ' · ' + d.mode);
   }
 
   /* ---------------------------------------------------------------- */
