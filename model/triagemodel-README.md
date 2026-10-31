@@ -1,4 +1,4 @@
-# model
+# triage filter model
 
 Two iterations of the onboard triage and downlink layer. Both are policy code:
 they decide what a satellite transmits, in what order, and how many bytes each
